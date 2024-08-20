@@ -52,6 +52,7 @@
 #include "mlir/Target/LLVMIR/Dialect/All.h"
 #include "mlir/Target/LLVMIR/Export.h"
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
+#include <openvino/util/env_util.hpp>
 
 #ifdef TPP_MLIR // If TPP is available
 #include "TPP/PassBundles.h"
@@ -81,8 +82,12 @@ void prepareMLIRKernelWithoutWrapper(mlir::OwningOpRef<mlir::ModuleOp>& module, 
         }
 #endif
 #ifdef GRAPH_COMPILER
+        // case ov::mlir::MLIR_MODE_GC: {
+        //     gc::populateCPUPipeline(pm);
+        //     break;
+        // }
         case ov::mlir::MLIR_MODE_GC: {
-            gc::populateCPUPipeline(pm);
+            gc::populateGPUPipeline(pm);
             break;
         }
 #endif
@@ -167,7 +172,7 @@ std::unique_ptr<llvm::Module> lowerToLLVMIR(Operation* module, llvm::LLVMContext
     std::string triple = "x86_64-linux-gnu";
     std::string cpuName = "alderlake";  // sapphirerapids, nehalem, etc.
     std::string fpuName = "avx2";       //  sse4.2, avx, avx2, avx512bf16, etc.
-    bool printLLVM = false;
+    bool printLLVM = ov::util::getenv_bool("OV_PRINT_MLIR_FINAL", false);
     auto codeGenOpt = 2;
 
     // Specify target machine
@@ -267,6 +272,28 @@ namespace mlir {
 
 using namespace ::mlir;
 
+void loadOpenMPSymbols(llvm::orc::MangleAndInterner interner, llvm::orc::SymbolMap &symbolMap, std::string path, std::vector<std::string> symbols) {
+  // Load the OpenMP runtime library
+  const char *ompLibPath = path.data();
+  if (llvm::sys::DynamicLibrary::LoadLibraryPermanently(ompLibPath)) {
+    llvm::errs() << "Failed to load OpenMP runtime library: " << ompLibPath << "\n";
+    return;
+  }
+
+  // Define the symbols to load from the library
+  auto loadSymbol = [&](const char *symbolName) {
+    if (void *symbolAddress = llvm::sys::DynamicLibrary::SearchForAddressOfSymbol(symbolName)) {
+      symbolMap[interner(symbolName)] = llvm::orc::ExecutorSymbolDef(llvm::orc::ExecutorAddr::fromPtr(symbolAddress), llvm::JITSymbolFlags::Exported);
+    } else {
+      llvm::errs() << "Failed to load symbol: " << symbolName << "\n";
+    }
+  };
+
+  for (int i=0; i<symbols.size(); i++){
+    loadSymbol(symbols[i].data());
+  }
+
+}
 
 MLIREvaluate::MLIREvaluate(OwningOpRef<mlir::ModuleOp> _module, MlirMode mode) :
     module(std::move(_module)) {
@@ -298,6 +325,23 @@ MLIREvaluate::MLIREvaluate(OwningOpRef<mlir::ModuleOp> _module, MlirMode mode) :
     auto maybeEngine = mlir::ExecutionEngine::create(module.get(), engineOptions);
     if (maybeEngine) {
         engine = std::move(maybeEngine.get());
+        // engine->loadLibrary("/usr/lib/x86_64-linux-gnu/libgomp.so.1");
+        engine->registerSymbols([&](llvm::orc::MangleAndInterner interner) {
+            llvm::orc::SymbolMap symbolMap;
+            loadOpenMPSymbols(
+                interner,
+                symbolMap,
+                "/usr/lib/x86_64-linux-gnu/libomp.so.5",
+                {"__kmpc_global_thread_num", "__kmpc_for_static_init_8u", "__kmpc_for_static_fini", "__kmpc_barrier", "__kmpc_fork_call"}
+            );
+            loadOpenMPSymbols(
+                interner,
+                symbolMap,
+                "/home/jovyan/graph-compiler/build/lib/libGcOpenclRuntime.so",
+                {"gpuCreateStream", "gpuKernelGet", "gpuLaunchKernel", "gpuMemAlloc", "gpuMemFree", "gpuModuleLoad", "gpuStreamDestroy", "gpuWait"}
+            );
+            return symbolMap;
+        });
     } else {
         llvm::errs() << "failed to construct an execution engine\n";
         abort();
