@@ -1,12 +1,20 @@
 // Copyright (C) 2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
+
+#include "ocl/ocl_device_detector.hpp"
+#include "ocl/ocl_common.hpp"
+
 #include "intel_gpu/plugin/common_utils.hpp"
 #include "intel_gpu/runtime/internal_properties.hpp"
 #include "intel_gpu/runtime/tensor_accessor.hpp"
 #include "openvino/core/partial_shape.hpp"
 #include "intel_gpu/plugin/program_builder.hpp"
 #include "intel_gpu/primitives/generic_primitive.hpp"
+#include "ocl/ocl_memory.hpp"
+
+#include <iostream>
+#include <fstream>
 
 namespace ov {
 namespace op {
@@ -38,21 +46,57 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
 
         ov::TensorVector input_host_tensors;
         ov::TensorVector output_host_tensors;
+        // to keep cl_mem objects alive
+        std::vector<cl_mem> cl_mem_refs;
 
-        for (size_t i = 0; i < inputs.size(); i++)
-            input_host_tensors.push_back(make_tensor(inputs[i]->get_layout(), inputs[i]->lock(stream, cldnn::mem_lock_type::read)));
+        auto process_buffer = [&stream, &cl_mem_refs](cldnn::memory::ptr mem, ov::TensorVector& tensors) {
+            switch (mem->get_allocation_type()) {
+                case cldnn::allocation_type::cl_mem: {
+                    auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_buffer*>(mem.get());
+                    cl_mem cl_buff = gpu_buff->get_buffer().get();
 
-        for (size_t i = 0; i < outputs.size(); i++)
-            output_host_tensors.push_back(make_tensor(outputs[i]->get_layout(), outputs[i]->lock(stream, cldnn::mem_lock_type::write)));
+                    // Keep the cl_mem reference alive
+                    cl_mem_refs.push_back(cl_buff);
+                    tensors.push_back(make_tensor(mem->get_layout(), &cl_mem_refs.back()));
+                    std::cout << " cl_mem: " << &cl_buff;
+                    break;
+                }
+                case cldnn::allocation_type::usm_host:
+                case cldnn::allocation_type::usm_shared:
+                case cldnn::allocation_type::usm_device: {
+                    auto usm_ptr = mem->buffer_ptr();
+                    auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_usm*>(mem.get());
+                    auto& usm_helper = gpu_buff->get_buffer().getUsmHelper();
+                    // HACK: force move to device, can we do better than this?
+                    usm_helper.enqueue_memcpy(
+                        dynamic_cast<cldnn::ocl::ocl_stream&>(stream).get_cl_queue(),
+                        usm_ptr,
+                        usm_ptr,
+                        mem->get_layout().bytes_count());
+                    std::cout << " usm_ptr: " << usm_ptr;
+                    tensors.push_back(make_tensor(mem->get_layout(), usm_ptr));
+                    break;
+                }
+                default:
+                    OPENVINO_THROW("Unsupported memory type");
+            }
+        };
 
-        OPENVINO_ASSERT(op->evaluate(output_host_tensors, input_host_tensors),
+        for (size_t i = 0; i < inputs.size(); i++) {
+            std::cout << "Input " << i;
+            process_buffer(inputs[i], input_host_tensors);
+            std::cout << std::endl;
+        }
+
+        for (size_t i = 0; i < outputs.size(); i++) {
+            std::cout << "Output " << i;
+            process_buffer(outputs[i], output_host_tensors);
+            std::cout << std::endl;
+        }
+
+        OPENVINO_ASSERT(op->evaluate(
+                        output_host_tensors, input_host_tensors/*, stream.get_cl_queue()*/),
                         "[GPU] Couldn't execute MLIROp ", op->get_friendly_name());
-
-        for (size_t i = 0; i < inputs.size(); i++)
-            inputs[i]->unlock(stream);
-
-        for (size_t i = 0; i < outputs.size(); i++)
-            outputs[i]->unlock(stream);
 
         ev->set();
         return ev;

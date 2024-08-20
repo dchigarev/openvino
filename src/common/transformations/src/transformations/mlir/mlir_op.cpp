@@ -52,6 +52,7 @@
 #include "mlir/Target/LLVMIR/Dialect/All.h"
 #include "mlir/Target/LLVMIR/Export.h"
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
+#include <openvino/util/env_util.hpp>
 
 #ifdef TPP_MLIR // If TPP is available
 #include "TPP/PassBundles.h"
@@ -61,6 +62,13 @@
 #ifdef GRAPH_COMPILER
 #include "gc/Transforms/Passes.h"
 #endif
+
+
+extern "C" {
+// referencing a variable from libGcOpenclRuntime.lib to keep it
+// linked for MLIR modules that use OpenCL runtime
+extern int ocl_runtime_keep_alive;
+}
 
 namespace {
 
@@ -83,6 +91,10 @@ void prepareMLIRKernelWithoutWrapper(mlir::OwningOpRef<mlir::ModuleOp>& module, 
 #ifdef GRAPH_COMPILER
         case ov::mlir::MLIR_MODE_GC: {
             gc::populateCPUPipeline(pm);
+            break;
+        }
+        case ov::mlir::MLIR_MODE_GC_GPU: {
+            gc::populateGPUPipeline(pm);
             break;
         }
 #endif
@@ -167,7 +179,7 @@ std::unique_ptr<llvm::Module> lowerToLLVMIR(Operation* module, llvm::LLVMContext
     std::string triple = "x86_64-linux-gnu";
     std::string cpuName = "alderlake";  // sapphirerapids, nehalem, etc.
     std::string fpuName = "avx2";       //  sse4.2, avx, avx2, avx512bf16, etc.
-    bool printLLVM = false;
+    bool printLLVM = ov::util::getenv_bool("OV_PRINT_MLIR_FINAL", false);
     auto codeGenOpt = 2;
 
     // Specify target machine
@@ -225,12 +237,25 @@ std::unique_ptr<llvm::Module> lowerToLLVMIR(Operation* module, llvm::LLVMContext
 struct MemRefDescriptor {
     MemRefDescriptor() = default;
 
-    MemRefDescriptor    (ov::Tensor tensor)
+    MemRefDescriptor    (ov::Tensor tensor, ov::Shape module_input_shape)
         : allocated(tensor.data()),
           aligned(tensor.data()),
           offset(0),
-          shape(tensor.get_shape().begin(), tensor.get_shape().end()) {
-        strides.resize(tensor.get_shape().size());
+          shape(module_input_shape.begin(), module_input_shape.end()) {
+        if (shape.size() != tensor.get_shape().size()) {
+            // validate that the shape difference is due to trailing '1's
+            for (size_t i = 0; i < shape.size(); ++i) {
+                if (shape[i] != tensor.get_shape()[i]) {
+                    OPENVINO_THROW("Mismatch in shape sizes");
+                }
+            }
+            for (size_t i = shape.size(); i < tensor.get_shape().size(); ++i) {
+                if (tensor.get_shape()[i] != 1) {
+                    OPENVINO_THROW("Mismatch in shape sizes");
+                }
+            }
+        }
+        strides.resize(shape.size());
         const auto& byte_strides = tensor.get_strides();
         auto element_size = tensor.get_element_type().size();
         for (size_t i = 0; i < strides.size(); ++i) {
@@ -240,6 +265,9 @@ struct MemRefDescriptor {
             //std::cerr << "stride [" << i << "] = " << strides[i] << "\n";
         }
     }
+
+    MemRefDescriptor    (ov::Tensor tensor)
+        : MemRefDescriptor(tensor, tensor.get_shape()) {}
 
     void* allocated;
     void* aligned;
@@ -267,9 +295,12 @@ namespace mlir {
 
 using namespace ::mlir;
 
-
 MLIREvaluate::MLIREvaluate(OwningOpRef<mlir::ModuleOp> _module, MlirMode mode) :
     module(std::move(_module)) {
+
+    // referencing a variable from libGcOpenclRuntime.lib to keep it
+    // linked for MLIR modules that use OpenCL runtime
+    ocl_runtime_keep_alive = 0;
 
     OPENVINO_MLIR_DEBUG_PRINT(
         "[ DEBUG ] Source MLIR:\n"
@@ -335,7 +366,8 @@ NodePtr MLIROp::clone_with_new_inputs(const ov::OutputVector& new_args) const {
 bool MLIROp::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inputs) const {
     std::vector<MemRefDescriptor> memref_args;
     for (size_t i = 0; i < inputs.size(); ++i) {
-        memref_args.push_back(MemRefDescriptor(inputs[i]));
+        auto initial_shape = get_input_shape(i);
+        memref_args.push_back(MemRefDescriptor(inputs[i], initial_shape));
     }
     for (size_t i = 0; i < outputs.size(); ++i) {
         // TODO: Optimize by adding all dimensions to dimensions_map, not only dynamic
