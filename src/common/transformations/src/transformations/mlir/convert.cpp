@@ -409,6 +409,13 @@ void ov::pass::transformMLIR(std::shared_ptr<ov::Model> model) {
                 "but OV_MLIR_MODE environment variable is set to GC.");
 #endif
             mode = MLIR_MODE_GC;
+        } else if (mode_str == "GC_GPU") {
+#ifndef GRAPH_COMPILER
+            OPENVINO_THROW(
+                "[ ERROR ] OpenVINO wasn't compiled with GRAPH_COMPILER support, "
+                "but OV_MLIR_MODE environment variable is set to GC.");
+#endif
+            mode = MLIR_MODE_GC_GPU;
         } else {
             OPENVINO_ASSERT(mode_str == "DEFAULT");
             mode = MLIR_MODE_DEFAULT;

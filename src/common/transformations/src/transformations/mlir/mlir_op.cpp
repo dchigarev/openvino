@@ -82,11 +82,11 @@ void prepareMLIRKernelWithoutWrapper(mlir::OwningOpRef<mlir::ModuleOp>& module, 
         }
 #endif
 #ifdef GRAPH_COMPILER
-        // case ov::mlir::MLIR_MODE_GC: {
-        //     gc::populateCPUPipeline(pm);
-        //     break;
-        // }
         case ov::mlir::MLIR_MODE_GC: {
+            gc::populateCPUPipeline(pm);
+            break;
+        }
+        case ov::mlir::MLIR_MODE_GC_GPU: {
             gc::populateGPUPipeline(pm);
             break;
         }
@@ -339,6 +339,12 @@ MLIREvaluate::MLIREvaluate(OwningOpRef<mlir::ModuleOp> _module, MlirMode mode) :
                 symbolMap,
                 "/home/jovyan/graph-compiler/build/lib/libGcOpenclRuntime.so",
                 {"gpuCreateStream", "gpuKernelGet", "gpuLaunchKernel", "gpuMemAlloc", "gpuMemFree", "gpuModuleLoad", "gpuStreamDestroy", "gpuWait"}
+            );
+            loadOpenMPSymbols(
+                interner,
+                symbolMap,                
+                "/home/jovyan/llvm/llvm-gc-master-patches-install/lib/libmlir_c_runner_utils.so",
+                {"memrefCopy"}
             );
             return symbolMap;
         });
