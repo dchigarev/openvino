@@ -323,7 +323,7 @@ MLIRContext* get_shared_mlir_context(MlirMode mode) {
     }
 
 #ifdef GRAPH_COMPILER
-    if (mode == MLIR_MODE_GC) {
+    if (mode == MLIR_MODE_GC || mode == MLIR_MODE_GC_GPU) {
         OPENVINO_MLIR_DEBUG_PRINT("GC\n");
         context = std::make_shared<MLIRContext>(gc::initCompilerAndGetDialects());
     } else {

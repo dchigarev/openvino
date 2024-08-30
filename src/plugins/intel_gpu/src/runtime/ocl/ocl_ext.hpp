@@ -925,6 +925,8 @@ public:
     // Get methods returns original pointer allocated by openCL.
     void* get() const { return _usm_pointer->ptr(); }
 
+    UsmHelper& getUsmHelper() { return const_cast<UsmHelper&>(_usmHelper); }
+
     void allocateHost(size_t size) {
         cl_int error = CL_SUCCESS;
         auto ptr = _usmHelper.allocate_host(nullptr, size, 0, &error);

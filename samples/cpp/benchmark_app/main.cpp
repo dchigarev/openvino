@@ -24,6 +24,11 @@
 #    undef WAS_OV_LIBRARY_DEFINED
 #endif
 
+
+#include <openvino/runtime/intel_gpu/ocl/ocl.hpp>
+#include <openvino/runtime/intel_gpu/ocl/ocl_wrapper.hpp>
+
+
 #include "samples/args_helper.hpp"
 #include "samples/common.hpp"
 #include "samples/slog.hpp"
@@ -237,6 +242,33 @@ void fuse_mean_scale(ov::preprocess::PrePostProcessor& preproc, const benchmark_
     }
 }
 }  // namespace
+
+void writeArrayToFile(float* array, size_t sz, const std::string& filename) {
+    // Open the file in text mode
+    std::ofstream file(filename);
+
+    if (!file) {
+        std::cerr << "Error: Could not open file " << filename << " for writing." << std::endl;
+        return;
+    }
+
+    // Write each element to the file in a human-readable format
+    for (size_t i = 0; i < sz; ++i) {
+        file << array[i];
+        if (i < sz - 1) {
+            file << " "; // Separate values with a space
+        }
+    }
+
+    if (!file) {
+        std::cerr << "Error: Write to file " << filename << " failed." << std::endl;
+    } else {
+        std::cout << "Array written to file " << filename << " successfully." << std::endl;
+    }
+
+    // Close the file
+    file.close();
+}
 
 /**
  * @brief The entry point of the benchmark application
@@ -946,11 +978,12 @@ int main(int argc, char* argv[]) {
         std::map<std::string, ov::TensorVector> inputsData;
         if (isFlagSetInCommandLine("use_device_mem")) {
             if (device_name.find("GPU") == 0) {
+                auto wtf = inferRequestsQueue.requests.size();
                 inputsData = ::gpu::get_remote_input_tensors(inputFiles,
                                                              app_inputs_info,
                                                              compiledModel,
                                                              clInputsBuffer,
-                                                             inferRequestsQueue.requests.size());
+                                                             wtf);
                 useGpuMem = true;
             } else if (device_name.find("CPU") == 0) {
                 if (newInputType) {
@@ -976,6 +1009,35 @@ int main(int argc, char* argv[]) {
                     nireq);
             }
         }
+        // auto context = compiledModel.get_context();
+        // auto& oclContext = static_cast<ov::intel_gpu::ocl::ClContext&>(context);
+        // auto oclInstance = std::make_shared<gpu::OpenCL>(oclContext.get());
+        // // iterate over clInputsBuffer
+        // void* mappedPtr = oclInstance->_queue.enqueueMapBuffer(clInputsBuffer[0],
+        //                                             CL_TRUE,
+        //                                             CL_MEM_READ_WRITE,
+        //                                             0,
+        //                                             (cl::size_type)(64 * 128 * 4));
+        // float* float_ptr = (float*) mappedPtr;
+        // writeArrayToFile(float_ptr, 64 * 128 * 4, "__begin_inp1.txt");
+
+        // mappedPtr = oclInstance->_queue.enqueueMapBuffer(clInputsBuffer[1],
+        //                                             CL_TRUE,
+        //                                             CL_MEM_READ_WRITE,
+        //                                             0,
+        //                                             (cl::size_type)(128 * 128 * 4));
+        // float_ptr = (float*) mappedPtr;
+        // writeArrayToFile(float_ptr, 128 * 128 * 4, "__begin_inp2.txt");
+        // std::map<std::string, std::vector<ov::Tensor>> inputsData;
+        // // iterate over keys and values of inputsData
+        // for (auto& item : inputsData) {
+        //     auto inputName = item.first;
+        //     auto& inputTensor = item.second;
+        //     for (size_t i = 0; i < inputTensor.size(); i++) {
+        //         auto& tensorRef = inputTensor[i];
+        //         ov::intel_gpu::ocl::ClBufferTensor* remoteTensorPtr = dynamic_cast<ov::intel_gpu::ocl::ClBufferTensor*>(&tensorRef);
+        //     }
+        // }
         // ----------------- 10. Measuring performance
         // ------------------------------------------------------------------
         size_t iteration = 0;

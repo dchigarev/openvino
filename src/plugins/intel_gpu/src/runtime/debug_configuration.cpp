@@ -309,6 +309,8 @@ debug_configuration::debug_configuration()
     std::string load_dump_raw_bin_str;
     get_gpu_debug_env_var("LoadDumpRawBinary", load_dump_raw_bin_str);
 
+    std::cout << "VERBOSE LEVEL: " << verbose << std::endl;
+
     if (help > 0) {
         print_help_messages();
         exit(0);

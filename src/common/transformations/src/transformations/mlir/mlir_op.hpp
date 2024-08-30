@@ -11,6 +11,7 @@
 #include "mlir/ExecutionEngine/OptUtils.h"
 
 #include "openvino/op/op.hpp"
+#include "openvino/core/shape.hpp"
 
 #include "convert_common.hpp"
 

@@ -1,12 +1,20 @@
 // Copyright (C) 2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
+
+#include "ocl/ocl_device_detector.hpp"
+#include "ocl/ocl_common.hpp"
+
 #include "intel_gpu/plugin/common_utils.hpp"
 #include "intel_gpu/runtime/internal_properties.hpp"
 #include "intel_gpu/runtime/tensor_accessor.hpp"
 #include "openvino/core/partial_shape.hpp"
 #include "intel_gpu/plugin/program_builder.hpp"
 #include "intel_gpu/primitives/generic_primitive.hpp"
+#include "ocl/ocl_memory.hpp"
+
+#include <iostream>
+#include <fstream>
 
 namespace ov {
 namespace op {
@@ -18,6 +26,33 @@ using MLIRSubgraph = ov::op::Op;
 
 namespace ov {
 namespace intel_gpu {
+
+void writeArrayToFile(float* array, size_t sz, const std::string& filename) {
+    // Open the file in text mode
+    std::ofstream file(filename);
+
+    if (!file) {
+        std::cerr << "Error: Could not open file " << filename << " for writing." << std::endl;
+        return;
+    }
+
+    // Write each element to the file in a human-readable format
+    for (size_t i = 0; i < sz; ++i) {
+        file << array[i];
+        if (i < sz - 1) {
+            file << " "; // Separate values with a space
+        }
+    }
+
+    if (!file) {
+        std::cerr << "Error: Write to file " << filename << " failed." << std::endl;
+    } else {
+        std::cout << "Array written to file " << filename << " successfully." << std::endl;
+    }
+
+    // Close the file
+    file.close();
+}
 
 void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir::MLIRSubgraph>& op) {
     cldnn::generic_primitive::execute_function execute_f = [op](
@@ -39,20 +74,29 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
         ov::TensorVector input_host_tensors;
         ov::TensorVector output_host_tensors;
 
-        for (size_t i = 0; i < inputs.size(); i++)
-            input_host_tensors.push_back(make_tensor(inputs[i]->get_layout(), inputs[i]->lock(stream, cldnn::mem_lock_type::read)));
+        for (size_t i = 0; i < inputs.size(); i++) {
+            auto usm_ptr = inputs[i]->buffer_ptr();
+            if (usm_ptr == nullptr) {
+                throw std::runtime_error("Only USM buffers are supported for MLIR ops");
+            }
+            input_host_tensors.push_back(make_tensor(inputs[i]->get_layout(), usm_ptr));
+        }
 
-        for (size_t i = 0; i < outputs.size(); i++)
-            output_host_tensors.push_back(make_tensor(outputs[i]->get_layout(), outputs[i]->lock(stream, cldnn::mem_lock_type::write)));
+        for (size_t i = 0; i < outputs.size(); i++) {
+            auto usm_ptr = outputs[i]->buffer_ptr();
+            if (usm_ptr == nullptr) {
+                throw std::runtime_error("Only USM buffers are supported for MLIR ops");
+            }
+            output_host_tensors.push_back(make_tensor(outputs[i]->get_layout(), usm_ptr));
+        }
 
         OPENVINO_ASSERT(op->evaluate(output_host_tensors, input_host_tensors),
                         "[GPU] Couldn't execute MLIROp ", op->get_friendly_name());
 
-        for (size_t i = 0; i < inputs.size(); i++)
-            inputs[i]->unlock(stream);
-
-        for (size_t i = 0; i < outputs.size(); i++)
-            outputs[i]->unlock(stream);
+        // for testing purposes
+        // float* output = reinterpret_cast<float*>(outputs[0]->lock(stream, cldnn::mem_lock_type::read));
+        // writeArrayToFile(output, 64 * 128, "/home/jovyan/openvino/out_after.txt");
+        // outputs[0]->unlock(stream);
 
         ev->set();
         return ev;
