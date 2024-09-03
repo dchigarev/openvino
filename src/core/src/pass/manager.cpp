@@ -91,6 +91,8 @@ private:
 };
 }  // namespace
 
+static std::atomic<int> GLOBAL_WTF_C;
+
 bool ov::pass::Manager::run_passes(shared_ptr<ov::Model> func) {
     OV_ITT_SCOPED_TASK(ov::itt::domains::core, "pass::Manager::run_passes");
 
@@ -153,12 +155,16 @@ bool ov::pass::Manager::run_passes(shared_ptr<ov::Model> func) {
             std::string index_str = std::to_string(index);
             index_str = std::string(num_digits_in_pass_index - index_str.length(), '0') + index_str;
             auto base_filename = func->get_name() + std::string("_") + index_str + std::string("_") + pass->get_name();
-
+            int c_val = GLOBAL_WTF_C.load(std::memory_order_relaxed);
+            auto sc_val = std::to_string(c_val);
+            sc_val = std::string(num_digits_in_pass_index - sc_val.length(), '0') + sc_val;
+            base_filename = "/home/jovyan/openvino/vis/" + sc_val + "_" + base_filename;
             if (m_visualize) {
                 auto file_ext = "svg";
                 pass::VisualizeTree vt(base_filename + std::string(".") + file_ext);
                 vt.run_on_model(func);
             }
+            GLOBAL_WTF_C++;
         }
         index++;
         pass_timer.stop();

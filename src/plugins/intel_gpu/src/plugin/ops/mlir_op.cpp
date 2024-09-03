@@ -73,21 +73,87 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
 
         ov::TensorVector input_host_tensors;
         ov::TensorVector output_host_tensors;
+        std::vector<float> arr(128 * 128, 0.5f);
+
+        // auto process_memory = [&stream](cldnn::memory::ptr mem, ov::TensorVector& tensors) {
+        //     switch (mem->get_allocation_type()) {
+        //         case cldnn::allocation_type::cl_mem: {
+        //             auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_buffer*>(mem.get());
+        //             cl_mem cl_buff = gpu_buff->get_buffer().get();
+        //             tensors.push_back(make_tensor(mem->get_layout(), &cl_buff));
+        //             std::cout << " cl_mem: " << &cl_buff;
+
+        //             // auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_buffer*>(mem.get());
+        //             // cl_mem cl_buff = gpu_buff->get_buffer().get();
+        //             // std::cout << " cl_buff: " << &cl_buff;
+        //             // tensors.push_back(make_tensor(mem->get_layout(), &cl_buff));
+        //             break;
+        //         }
+        //         case cldnn::allocation_type::usm_host:
+        //         case cldnn::allocation_type::usm_shared:
+        //         case cldnn::allocation_type::usm_device: {
+        //             auto usm_ptr = mem->buffer_ptr();
+        //             auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_usm*>(mem.get());
+        //             auto& usm_helper = gpu_buff->get_buffer().getUsmHelper();
+        //             // HACK: force move to device, can we do better than this?
+        //             usm_helper.enqueue_memcpy(
+        //                 dynamic_cast<cldnn::ocl::ocl_stream&>(stream).get_cl_queue(),
+        //                 usm_ptr,
+        //                 usm_ptr,
+        //                 mem->get_layout().bytes_count());
+        //             std::cout << " usm_ptr: " << usm_ptr;
+        //             tensors.push_back(make_tensor(mem->get_layout(), usm_ptr));
+        //             break;
+        //         }
+        //         default:
+        //             throw std::runtime_error("Unsupported memory type");
+        //     }
+        // };
+
+        // for (size_t i = 0; i < inputs.size(); i++) {
+        //     std::cout << "Input " << i;
+        //     process_memory(inputs[i], input_host_tensors);
+        //     std::cout << std::endl;
+        // }
+
+        // for (size_t i = 0; i < outputs.size(); i++) {
+        //     std::cout << "Output " << i;
+        //     process_memory(outputs[i], output_host_tensors);
+        //     std::cout << std::endl;
+        // }
 
         for (size_t i = 0; i < inputs.size(); i++) {
             auto usm_ptr = inputs[i]->buffer_ptr();
             if (usm_ptr == nullptr) {
-                throw std::runtime_error("Only USM buffers are supported for MLIR ops");
+                auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_buffer*>(inputs[i].get());
+                cl_mem cl_buff = gpu_buff->get_buffer().get();
+                input_host_tensors.push_back(make_tensor(inputs[i]->get_layout(), cl_buff));
+                std::cout << "input " << i << " is cl_mem: " << cl_buff << std::endl;
+            } else {
+                // copy data to usm_ptr
+                auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_usm*>(inputs[i].get());
+                auto& usm_helper = gpu_buff->get_buffer().getUsmHelper();
+                usm_helper.enqueue_memcpy(
+                    dynamic_cast<cldnn::ocl::ocl_stream&>(stream).get_cl_queue(),
+                    usm_ptr,
+                    usm_ptr,
+                    inputs[i]->get_layout().bytes_count());
+                input_host_tensors.push_back(make_tensor(inputs[i]->get_layout(), usm_ptr));
+                std::cout << "input " << i << " is USM: " << usm_ptr << " sz: " << inputs[i]->get_layout().bytes_count() << std::endl;
             }
-            input_host_tensors.push_back(make_tensor(inputs[i]->get_layout(), usm_ptr));
         }
 
         for (size_t i = 0; i < outputs.size(); i++) {
             auto usm_ptr = outputs[i]->buffer_ptr();
             if (usm_ptr == nullptr) {
-                throw std::runtime_error("Only USM buffers are supported for MLIR ops");
+                auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_buffer*>(outputs[i].get());
+                cl_mem cl_buff = gpu_buff->get_buffer().get();
+                output_host_tensors.push_back(make_tensor(outputs[i]->get_layout(), &cl_buff));
+                std::cout << "output " << i << " is cl_mem: " << &cl_buff << std::endl;
+            } else {
+                output_host_tensors.push_back(make_tensor(outputs[i]->get_layout(), usm_ptr));
+                std::cout << "output " << i << " is USM: " << usm_ptr << std::endl;
             }
-            output_host_tensors.push_back(make_tensor(outputs[i]->get_layout(), usm_ptr));
         }
 
         OPENVINO_ASSERT(op->evaluate(output_host_tensors, input_host_tensors),

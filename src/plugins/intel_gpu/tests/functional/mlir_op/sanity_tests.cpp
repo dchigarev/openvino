@@ -13,6 +13,7 @@
 #include <openvino/runtime/intel_gpu/ocl/ocl.hpp>
 #include <openvino/runtime/intel_gpu/ocl/ocl_wrapper.hpp>
 #include "opencl_helper_instance.hpp"
+#include "openvino/core/preprocess/pre_post_process.hpp"
 
 using testing::ElementsAreArray;
 
@@ -133,12 +134,9 @@ private:
 };
 
 template<typename T>
-static ov::Tensor allocate_usm_tensor(size_t byte_size, ov::CompiledModel& compiledModel, ov::element::Type type, std::vector<T> &input_values) {
-    auto context = compiledModel.get_context();
-    // context.create_tensor(ov::element::f32, {1}, clBuffer[0]);
-
-    auto& oclContext = static_cast<ov::intel_gpu::ocl::ClContext&>(context);
-    auto oclInstance = std::make_shared<OpenCL2>(oclContext.get());
+static ov::Tensor allocate_usm_tensor(
+        ov::intel_gpu::ocl::ClContext& oclContext, OpenCL2* oclInstance, size_t byte_size,
+        ov::CompiledModel& compiledModel, ov::element::Type type, std::vector<T> &input_values) {
     cl_int err;
     // void* usm_ptr = oclInstance->_usm_helper->allocate_host(
     //     /*properties=*/nullptr,
@@ -147,7 +145,7 @@ static ov::Tensor allocate_usm_tensor(size_t byte_size, ov::CompiledModel& compi
     //     /*err_code_return=*/&err);
 
     // std::cout << "STATUS: " << err << std::endl;
-
+    byte_size = 128 * 128 * 4;
     // err = oclInstance->_usm_helper->enqueue_memcpy(
     //     oclInstance->_queue,
     //     /*dst_ptr=*/usm_ptr,
@@ -209,17 +207,73 @@ static ov::Tensor allocate_usm_tensor(size_t byte_size, ov::CompiledModel& compi
     // return ov::Tensor(type, {size}, ov::runtime::AllocationType::usm_shared);
 }
 
-TEST(MLIRExecution, SimpleMatmul) {
-    std::vector<float> input_values(64 * 128, 0.5f);
+// int writeBinary(void* array, size_t count, const std::string& filename) {
+//     std::ofstream file(filename, std::ios::binary);
+
+//     if (!file) {
+//         std::cerr << "Error opening file for writing" << std::endl;
+//         return 1;
+//     }
+
+//     // Write the void* array as pointers (addresses) to the binary file
+
+//     // If you want to write the data pointed to by these pointers (integers)
+//     for (size_t i = 0; i < count; ++i) {
+//         file.write(reinterpret_cast<char*>(array[i]), sizeof(std::uint16_t));
+//     }
+
+//     file.close();
+// }
+
+void writeArrayToFile(float* array, size_t sz, const std::string& filename) {
+    // Open the file in text mode
+    std::ofstream file(filename);
+
+    if (!file) {
+        std::cerr << "Error: Could not open file " << filename << " for writing." << std::endl;
+        return;
+    }
+
+    // Write each element to the file in a human-readable format
+    for (size_t i = 0; i < sz; ++i) {
+        file << array[i];
+        if (i < sz - 1) {
+            file << " "; // Separate values with a space
+        }
+    }
+
+    if (!file) {
+        std::cerr << "Error: Write to file " << filename << " failed." << std::endl;
+    } else {
+        std::cout << "Array written to file " << filename << " successfully." << std::endl;
+    }
+
+    // Close the file
+    file.close();
+}
+
+TEST(MLIRExecution, SimpleMatmulf32) {
+    std::vector<float> input_values(64 * 128, 2.5f);
 
     ov::Core core;
-    core.add_extension(get_extension_path());
-    auto ov_model = core.read_model(
+    auto model = core.read_model(
         "/home/jovyan/openvino/src/plugins/intel_gpu/tests/functional/mlir_op/models/matmul_64_128_f32.xml");
-    auto compiled_model = core.compile_model(ov_model, "GPU");
+
+    ov::AnyMap device_config;
+    device_config[ov::hint::performance_mode.name()] = ov::hint::PerformanceMode::THROUGHPUT;
+    device_config[ov::enable_profiling.name()] = false;
+    device_config.emplace(ov::hint::inference_precision("f32"));
+
+
+    auto compiled_model = core.compile_model(model, "GPU", device_config);
 
     auto infer_req = compiled_model.create_infer_request();
-    auto tensor = allocate_usm_tensor(64 * 128 * 4, compiled_model, ov::element::f32, input_values);
+
+    auto context = compiled_model.get_context();
+    auto& oclContext = static_cast<ov::intel_gpu::ocl::ClContext&>(context);
+    auto oclInstance = std::make_shared<OpenCL2>(oclContext.get());
+
+    auto tensor = allocate_usm_tensor(oclContext, oclInstance.get(), 64 * 128 * 4, compiled_model, ov::element::f32, input_values);
     auto tens = infer_req.get_output_tensor(0);
     auto shp = tens.get_shape();
     std::cout << "SHP: ";
@@ -230,8 +284,132 @@ TEST(MLIRExecution, SimpleMatmul) {
     infer_req.set_input_tensor(tensor);
     infer_req.infer();
     // infer_req.wait();
-    // auto computed = infer_req.get_output_tensor(0);
-    // infer_model(core, compiled_model, input_values, expected);
+    auto computed = infer_req.get_output_tensor(0);
+    float* data = reinterpret_cast<float*>(computed.data());
+    std::cout << "res: " << data[0] << std::endl;
+    // float* data = reinterpret_cast<float*>(computed.data());
+    auto usm_te = static_cast<ov::intel_gpu::ocl::ClBufferTensor&>(computed);
+}
+
+TEST(MLIRExecution, SimpleMatmulf16) {
+    std::vector<float> input_values(64 * 128, 0.5f);
+
+    ov::Core core;
+    core.add_extension(get_extension_path());
+    auto model = core.read_model(
+        "/home/jovyan/openvino/src/plugins/intel_gpu/tests/functional/mlir_op/models/matmul_64_128_f16.xml");
+
+    auto preproc = ov::preprocess::PrePostProcessor(model);
+
+    const auto input_precision = ov::element::f32;
+    const auto output_precision = ov::element::f32;
+
+    const auto& inputs = model->inputs();
+    for (size_t i = 0; i < inputs.size(); i++) {
+        const auto& item = inputs[i];
+        auto iop_precision = ov::element::undefined;
+        auto type_to_set = ov::element::undefined;
+        std::string name;
+        // try {
+        //     // Some tensors might have no names, get_any_name will throw exception in that case.
+        //     // -iop option will not work for those tensors.
+        //     name = item.get_any_name();
+        //     iop_precision = getPrecision2(user_precisions_map.at(item.get_any_name()));
+        // } catch (...) {
+        // }
+
+        if (iop_precision != ov::element::undefined) {
+            type_to_set = iop_precision;
+        } else if (input_precision != ov::element::undefined) {
+            type_to_set = input_precision;
+        } // else if (!name.empty() && app_inputs_info[0].at(name).is_image()) {
+        //     // image input, set U8
+        //     type_to_set = ov::element::u8;
+        // }
+
+        auto& in = preproc.input(item.get_any_name());
+        if (type_to_set != ov::element::undefined) {
+            in.tensor().set_element_type(type_to_set);
+
+            // if (!name.empty()) {
+            //     for (auto& info : app_inputs_info) {
+            //         info.at(name).type = type_to_set;
+            //     }
+            // }
+        }
+        // // Explicitly set inputs layout.
+        // if (!name.empty() && !app_inputs_info[0].at(name).layout.empty()) {
+        //     in.model().set_layout(app_inputs_info[0].at(name).layout);
+        // }
+    }
+
+    // use_mean_scale(preproc, app_inputs_info.at(0));
+
+    const auto& outs = model->outputs();
+    for (size_t i = 0; i < outs.size(); i++) {
+        const auto& item = outs[i];
+        auto iop_precision = ov::element::undefined;
+        // try {
+        //     // Some tensors might have no names, get_any_name will throw exception in that case.
+        //     // -iop option will not work for those tensors.
+        //     iop_precision = getPrecision2(user_precisions_map.at(item.get_any_name()));
+        // } catch (...) {
+        // }
+
+        if (iop_precision != ov::element::undefined) {
+            preproc.output(i).tensor().set_element_type(iop_precision);
+        } else if (output_precision != ov::element::undefined) {
+            preproc.output(i).tensor().set_element_type(output_precision);
+        }
+    }
+
+    model = preproc.build();
+
+    ov::AnyMap device_config;
+    device_config[ov::hint::performance_mode.name()] = ov::hint::PerformanceMode::THROUGHPUT;
+    device_config[ov::enable_profiling.name()] = false;
+    device_config.emplace(ov::hint::inference_precision("f32"));
+
+
+    auto compiled_model = core.compile_model(model, "GPU", device_config);
+
+    auto infer_req = compiled_model.create_infer_request();
+
+    auto context = compiled_model.get_context();
+    // context.create_tensor(ov::element::f32, {1}, clBuffer[0]);
+
+    auto& oclContext = static_cast<ov::intel_gpu::ocl::ClContext&>(context);
+    auto oclInstance = std::make_shared<OpenCL2>(oclContext.get());
+
+    auto tensor = allocate_usm_tensor(oclContext, oclInstance.get(), 64 * 128 * 4, compiled_model, ov::element::f32, input_values);
+    auto tens = infer_req.get_output_tensor(0);
+    auto shp = tens.get_shape();
+    std::cout << "SHP: ";
+    for (auto i : shp) {
+        std::cout << i << " ";
+    }
+    std::cout << std::endl;
+    infer_req.set_input_tensor(tensor);
+    infer_req.infer();
+    // infer_req.wait();
+    auto computed = infer_req.get_output_tensor(0);
+    float* data = reinterpret_cast<float*>(computed.data());
+    std::cout << "res: " << data[0] << std::endl;
+    // auto usm_te = static_cast<ov::intel_gpu::ocl::USMTensor&>(computed);
+    // void* usm_ptr = usm_te.get();
+    // cl_event tmp;
+    // size_t byte_size = 64 * 128 * 4;
+    // cl_int err = oclInstance->_enqueue_memcpy_fn(
+    //     oclInstance->_queue.get(),
+    //     static_cast<cl_bool>(true), // blocking
+    //     input_values.data(), // dst_ptr
+    //     usm_ptr, // src_ptr
+    //     byte_size,
+    //     0, // wait_list_size == nullptr ? 0 : static_cast<cl_uint>(wait_list->size()),
+    //     nullptr, // wait_list == nullptr ? nullptr : reinterpret_cast<const cl_event*>(&wait_list->front()),
+    //     &tmp);// ret_event == nullptr ? nullptr : &tmp);
+    // // infer_model(core, compiled_model, input_values, expected);
+    // writeArrayToFile(data, 64 * 128, "/home/jovyan/openvino/test_out_after.txt");
 }
 
 TEST(Extension, smoke_XmlModelWithExtensionFromDSO) {

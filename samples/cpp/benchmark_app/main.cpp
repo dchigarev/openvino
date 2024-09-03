@@ -729,12 +729,12 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 // Explicitly set inputs layout.
-                if (!name.empty() && !app_inputs_info[0].at(name).layout.empty()) {
-                    in.model().set_layout(app_inputs_info[0].at(name).layout);
-                }
+                // if (!name.empty() && !app_inputs_info[0].at(name).layout.empty()) {
+                //     in.model().set_layout(app_inputs_info[0].at(name).layout);
+                // }
             }
 
-            fuse_mean_scale(preproc, app_inputs_info.at(0));
+            // use_mean_scale(preproc, app_inputs_info.at(0));
 
             const auto& outs = model->outputs();
             for (size_t i = 0; i < outs.size(); i++) {
