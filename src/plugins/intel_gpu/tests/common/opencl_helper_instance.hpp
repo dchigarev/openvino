@@ -93,7 +93,7 @@ struct OpenCL {
         _queue = cl::CommandQueue(_context, _device, props);
     }
 
-    OpenCL(cl_context& context, bool out_of_order_queue = true)
+    OpenCL(cl_context context, bool out_of_order_queue = true)
         : _out_of_order_queue(out_of_order_queue) {
         _context = cl::Context(context, true);
         _device = cl::Device(_context.getInfo<CL_CONTEXT_DEVICES>()[0].get(), true);

@@ -314,7 +314,7 @@ void Transformations::PreLpt(const std::vector<ov::element::Type>& defaultPrecis
     CPU_REGISTER_PASS_COMMON(decompression_handling_manager, ov::pass::ConvertGatherToGatherCompressed);
     CPU_REGISTER_PASS_COMMON(decompression_handling_manager, ov::pass::MarkShapeOfSubgraphs);
     // We need to fuse Transpose to MatMul to have a simpler callback for the next transformation
-    CPU_REGISTER_PASS_X64(decompression_handling_manager, ov::pass::TransposeMatMul);
+    // CPU_REGISTER_PASS_X64(decompression_handling_manager, ov::pass::TransposeMatMul);
     ov::element::TypeVector decompression_precisions{ov::element::u8,
                                                      ov::element::i8,
                                                      ov::element::u4,
@@ -415,7 +415,7 @@ void Transformations::PreLpt(const std::vector<ov::element::Type>& defaultPrecis
     CPU_REGISTER_PASS_COMMON(manager, ov::pass::Validate);
     CPU_REGISTER_PASS_COMMON(manager, ov::pass::ConvertMatrixNmsToMatrixNmsIE);
     CPU_REGISTER_PASS_COMMON(manager, ov::pass::Validate);
-    CPU_REGISTER_PASS_COMMON(manager, ov::pass::TransposeMatMul);
+    // CPU_REGISTER_PASS_COMMON(manager, ov::pass::TransposeMatMul);
     CPU_REGISTER_PASS_COMMON(manager, ov::pass::ConstantFolding);
     CPU_REGISTER_PASS_ARM64(manager, ov::pass::HardSigmoidDecomposition);
 
