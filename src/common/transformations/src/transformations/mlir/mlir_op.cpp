@@ -63,6 +63,12 @@
 #include "gc/Transforms/Passes.h"
 #endif
 
+
+extern "C" {
+extern int ocl_runtime_keep_alive;
+extern int gc_runtime_keep_alive;
+}
+
 namespace {
 
 using namespace mlir;
@@ -313,6 +319,9 @@ void loadOpenMPSymbols(llvm::orc::MangleAndInterner interner, llvm::orc::SymbolM
 
 MLIREvaluate::MLIREvaluate(OwningOpRef<mlir::ModuleOp> _module, MlirMode mode) :
     module(std::move(_module)) {
+
+    ocl_runtime_keep_alive = 0;
+    gc_runtime_keep_alive = 0;
 
     OPENVINO_MLIR_DEBUG_PRINT(
         "[ DEBUG ] Source MLIR:\n"
