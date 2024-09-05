@@ -24,7 +24,6 @@
 #    undef WAS_OV_LIBRARY_DEFINED
 #endif
 
-
 #include "samples/args_helper.hpp"
 #include "samples/common.hpp"
 #include "samples/slog.hpp"
@@ -703,7 +702,7 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            use_mean_scale(preproc, app_inputs_info.at(0));
+            fuse_mean_scale(preproc, app_inputs_info.at(0));
 
             const auto& outs = model->outputs();
             for (size_t i = 0; i < outs.size(); i++) {

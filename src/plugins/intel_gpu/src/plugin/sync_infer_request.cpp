@@ -356,17 +356,6 @@ void SyncInferRequest::wait() {
             // For new shape infer this shouldn't happen, thus remove that WA once we migrate to ngraph-based shape infer for all cases
             if (!m_graph->get_config().get_property(ov::intel_gpu::allow_new_shape_infer)) {
                 OPENVINO_ASSERT(port.get_partial_shape().is_static(), "[GPU] Unexpected dynamic shape for legacy shape inference");
-                std::cout << "Port shape: ";
-                for (size_t i = 0; i < port.get_shape().size(); i++) {
-                    std::cout << port.get_shape()[i] << " ";
-                }
-                std::cout << std::endl;
-
-                std::cout << "Memshape: ";
-                for (size_t i = 0; i < mem_shape.size(); i++) {
-                    std::cout << mem_shape[i] << " ";
-                }
-                std::cout << std::endl;
                 OPENVINO_ASSERT(ov::shape_size(port.get_shape()) == ov::shape_size(mem_shape), "[GPU] Unexpected elements count for output tensor");
                 mem_shape = port.get_shape();
             }

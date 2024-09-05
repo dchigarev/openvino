@@ -45,7 +45,7 @@ OV_ROOT=$(git rev-parse --show-toplevel)
 BENCH_ROOT=$(realpath "${OV_ROOT}/tools/mlir_bench")
 
 MODEL_GEN=$(realpath "${BENCH_ROOT}/ov_model_gen.py")
-BENCH_RUNNER=/home/jovyan/openvino/bin/intel64/Release/benchmark_app
+BENCH_RUNNER=benchmark_app
 
 # Initial validation.
 if ! [ -d "${OV_ROOT}" ]; then
@@ -72,8 +72,8 @@ fi
 # Kernel config.
 #LAYERS=( 1024 2048 4096 8192 )
 #MINI_BATCHES=( 128 256 512 )
-LAYERS=( 128 )
-MINI_BATCHES=( 64 )
+LAYERS=( 1024 )
+MINI_BATCHES=( 256 )
 if [ ! "${DATA_TYPE}" ]; then
     DATA_TYPE="f32"
 fi
@@ -100,11 +100,11 @@ for MB in "${MINI_BATCHES[@]}"; do
     if [ "${IS_DYNAMIC}" ]; then
         GEN_FLAGS+=(--dynamic)
     fi
-    # python3 ${MODEL_GEN} "${MODEL_CONFIG[@]}" "${GEN_FLAGS[@]}"
-    # if [ $? != 0 ]; then
-    #     echo "Failed to generate model"
-    #     exit 1
-    # fi
+    python3 ${MODEL_GEN} "${MODEL_CONFIG[@]}" "${GEN_FLAGS[@]}"
+    if [ $? != 0 ]; then
+        echo "Failed to generate model"
+        exit 1
+    fi
     # Run benchmark.
     PRECISION=${DATA_TYPE}
     if [ "${DATA_TYPE}" = "bf16" ]; then
@@ -115,9 +115,9 @@ for MB in "${MINI_BATCHES[@]}"; do
         DATA_SHAPE=(-data_shape [${MB},${LAYER}])
     fi
     # Benchmark config. Disable parallelism.
-    PERF_FLAGS="-niter 1000"
-    BENCH_FLAGS="-m ${MODEL_NAME} -d GPU -ip ${PRECISION} -infer_precision ${DATA_TYPE} ${DATA_SHAPE[@]} ${PERF_FLAGS}"
-    echo "${BENCH_RUNNER} ${BENCH_FLAGS}" # 2>/dev/null | \
-        # sed -nE "s/.*\[ INFO \]\s*Median:\s*([0-9.]+).*/\\1/p"
+    PERF_FLAGS="-niter 1000 -hint none -nstreams 1 -nthreads 1"
+    BENCH_FLAGS="-m ${MODEL_NAME} -d CPU -ip ${PRECISION} -infer_precision ${DATA_TYPE} ${DATA_SHAPE[@]} ${PERF_FLAGS}"
+    ${BENCH_RUNNER} ${BENCH_FLAGS} 2>/dev/null | \
+        sed -nE "s/.*\[ INFO \]\s*Median:\s*([0-9.]+).*/\\1/p"
   done
 done

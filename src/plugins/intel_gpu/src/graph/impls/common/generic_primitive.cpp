@@ -34,8 +34,7 @@ struct generic_primitive_impl : typed_primitive_impl<generic_primitive> {
         std::vector<memory::ptr> inputs;
         inputs.reserve(instance.inputs_memory_count());
         for (size_t i = 0; i < instance.inputs_memory_count(); i++) {
-            auto mem = instance.input_memory_ptr(i);
-            inputs.push_back(mem);
+            inputs.push_back(instance.input_memory_ptr(i));
         }
 
         std::vector<memory::ptr> outputs;
@@ -44,11 +43,7 @@ struct generic_primitive_impl : typed_primitive_impl<generic_primitive> {
             outputs.push_back(instance.output_memory_ptr(i));
         }
 
-        auto ef = instance.node->get_primitive()->execute_f;
-        auto& str = instance.get_network().get_stream();
-
-        return ef(events, str, inputs, outputs);
-        // return instance.node->get_primitive()->execute_f(events, instance.get_network().get_stream(), inputs, outputs);
+        return instance.node->get_primitive()->execute_f(events, instance.get_network().get_stream(), inputs, outputs);
     }
 
     static std::unique_ptr<primitive_impl> create(const generic_primitive_node& arg, const kernel_impl_params&) {

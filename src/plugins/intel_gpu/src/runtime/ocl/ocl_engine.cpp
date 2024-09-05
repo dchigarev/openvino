@@ -255,7 +255,6 @@ memory::ptr ocl_engine::reinterpret_handle(const layout& new_layout, shared_mem_
             return std::make_shared<ocl::gpu_buffer>(this, new_layout, buf, nullptr);
         } else if (params.mem_type == shared_mem_type::shared_mem_usm) {
             cl::UsmMemory usm_buffer(get_usm_helper(), params.mem);
-            std::cout << "Trying to check: " << usm_buffer.get() << " | " << params.mem << std::endl;
             auto actual_mem_size = get_usm_helper().get_usm_allocation_size(usm_buffer.get());
             auto requested_mem_size = new_layout.bytes_count();
             OPENVINO_ASSERT(actual_mem_size >= requested_mem_size,
