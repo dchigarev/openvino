@@ -342,28 +342,28 @@ MLIREvaluate::MLIREvaluate(OwningOpRef<mlir::ModuleOp> _module, MlirMode mode) :
     if (maybeEngine) {
         engine = std::move(maybeEngine.get());
         // engine->loadLibrary("/usr/lib/x86_64-linux-gnu/libgomp.so.1");
-        engine->registerSymbols([&](llvm::orc::MangleAndInterner interner) {
-            llvm::orc::SymbolMap symbolMap;
-            loadOpenMPSymbols(
-                interner,
-                symbolMap,
-                "/usr/lib/x86_64-linux-gnu/libomp.so.5",
-                {"__kmpc_global_thread_num", "__kmpc_for_static_init_8u", "__kmpc_for_static_fini", "__kmpc_barrier", "__kmpc_fork_call"}
-            );
-            loadOpenMPSymbols(
-                interner,
-                symbolMap,
-                "/home/jovyan/graph-compiler/build/lib/libGcOpenclRuntime.so",
-                {"gpuCreateStream", "gpuKernelGet", "gpuLaunchKernel", "gpuMemAlloc", "gpuMemFree", "gpuModuleLoad", "gpuStreamDestroy", "gpuWait"}
-            );
-            loadOpenMPSymbols(
-                interner,
-                symbolMap,                
-                "/home/jovyan/llvm/llvm-gc-master-patches-install/lib/libmlir_c_runner_utils.so",
-                {"memrefCopy"}
-            );
-            return symbolMap;
-        });
+        // engine->registerSymbols([&](llvm::orc::MangleAndInterner interner) {
+        //     llvm::orc::SymbolMap symbolMap;
+        //     loadOpenMPSymbols(
+        //         interner,
+        //         symbolMap,
+        //         "/usr/lib/x86_64-linux-gnu/libomp.so.5",
+        //         {"__kmpc_global_thread_num", "__kmpc_for_static_init_8u", "__kmpc_for_static_fini", "__kmpc_barrier", "__kmpc_fork_call"}
+        //     );
+        //     loadOpenMPSymbols(
+        //         interner,
+        //         symbolMap,
+        //         "/home/jovyan/graph-compiler/build/lib/libGcOpenclRuntime.so",
+        //         {"gpuCreateStream", "gpuKernelGet", "gpuLaunchKernel", "gpuMemAlloc", "gpuMemFree", "gpuModuleLoad", "gpuStreamDestroy", "gpuWait"}
+        //     );
+        //     loadOpenMPSymbols(
+        //         interner,
+        //         symbolMap,                
+        //         "/home/jovyan/llvm/llvm-gc-master-patches-install/lib/libmlir_c_runner_utils.so",
+        //         {"memrefCopy"}
+        //     );
+        //     return symbolMap;
+        // });
     } else {
         llvm::errs() << "failed to construct an execution engine\n";
         abort();

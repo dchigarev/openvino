@@ -32,8 +32,10 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
             GcInterface
             GcJitWrapper
             GcCpuRuntime
+            GcOpenclRuntime
     )
     set_property(GLOBAL PROPERTY GRAPH_COMPILER_LIBS ${GRAPH_COMPILER_LIBS})
 endif ()
 
 get_target_property(GRAPH_COMPILER_INCLUDES GcInterface INTERFACE_INCLUDE_DIRECTORIES)
+get_target_property(GRAPH_COMPILER_COMPILE_OPTIONS GcInterface INTERFACE_COMPILE_OPTIONS)

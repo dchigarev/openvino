@@ -21,25 +21,25 @@ static std::string model_full_path(const char* path) {
     return ov::util::make_path<char>(TEST_MODELS_DIR, path);
 }
 
-void multiply_matrices_and_add_a(const std::vector<float>& matrix_a, const std::vector<float>& matrix_b,
-                       std::vector<float>& result, int rows_a, int cols_a, int cols_b) {
+static void multiply_matrices_and_add_a(const std::vector<float>& matrix_a, const std::vector<float>& matrix_b,
+                       std::vector<float>& result, size_t rows_a, size_t cols_a, size_t cols_b) {
     // Initialize the result matrix with zero values
     std::fill(result.begin(), result.end(), 0.0f);
 
     // Matrix multiplication logic using linear indexing
-    for (int i = 0; i < rows_a; ++i) {
-        for (int j = 0; j < cols_b; ++j) {
-            for (int k = 0; k < cols_a; ++k) {
+    for (size_t i = 0; i < rows_a; ++i) {
+        for (size_t j = 0; j < cols_b; ++j) {
+            for (size_t k = 0; k < cols_a; ++k) {
                 result[i * cols_b + j] += matrix_a[i * cols_a + k] * matrix_b[k * cols_b + j];
             }
         }
     }
-    for (int i = 0; i < matrix_a.size(); i++) {
+    for (size_t i = 0; i < matrix_a.size(); i++) {
         result[i] += matrix_a[i];
     }
 }
 
-std::vector<float> read_float_array_from_binary_file(const std::string& filename) {
+static std::vector<float> read_float_array_from_binary_file(const std::string& filename) {
     // Open the binary file in input mode and binary mode
     std::ifstream input_file(filename, std::ios::binary);
 
@@ -85,7 +85,6 @@ static ov::Tensor allocate_usm_tensor(
         /*err_code_return=*/&err);
     std::cout << "allocated: " << usm_ptr << std::endl;
 
-    cl_event tmp;
     err = oclInstance->_usm_helper->enqueue_memcpy(
         oclInstance->_queue,
         /*dst=*/usm_ptr,
@@ -99,7 +98,7 @@ static ov::Tensor allocate_usm_tensor(
 }
 
 template<typename T>
-std::vector<T> broadcast_vector(const std::vector<T>& v, size_t new_size) {
+static std::vector<T> broadcast_vector(const std::vector<T>& v, size_t new_size) {
     std::vector<T> result;
     result.reserve(new_size);
 
