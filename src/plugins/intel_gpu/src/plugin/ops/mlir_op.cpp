@@ -16,6 +16,11 @@
 #include <iostream>
 #include <fstream>
 
+#if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
+#include "runtime/ocl/ocl_stream.hpp"
+#include "gc/ExecutionEngine/OpenCLRuntime/OpenCLRuntimeWrappers.h"
+#endif
+
 namespace ov {
 namespace op {
 namespace mlir {
@@ -94,9 +99,23 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
             std::cout << std::endl;
         }
 
+#if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
+        cl_command_queue queue = nullptr;
+        if (auto ocl_stream = dynamic_cast<cldnn::ocl::ocl_stream*>(&stream)) {
+            queue = ocl_stream->get_cl_queue().get();
+            gpuSetThreadLocalQueue(queue);
+        }
+#endif
+
         OPENVINO_ASSERT(op->evaluate(
                         output_host_tensors, input_host_tensors/*, stream.get_cl_queue()*/),
                         "[GPU] Couldn't execute MLIROp ", op->get_friendly_name());
+
+#if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
+        if (queue) {
+            gpuSetThreadLocalQueue(nullptr);
+        }
+#endif
 
         ev->set();
         return ev;
