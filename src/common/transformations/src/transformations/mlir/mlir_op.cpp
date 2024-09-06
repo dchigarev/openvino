@@ -65,8 +65,9 @@
 
 
 extern "C" {
+// referencing a variable from libGcOpenclRuntime.lib to keep it
+// linked for MLIR modules that use OpenCL runtime
 extern int ocl_runtime_keep_alive;
-extern int gc_runtime_keep_alive;
 }
 
 namespace {
@@ -245,12 +246,12 @@ struct MemRefDescriptor {
             // validate that the shape difference is due to trailing '1's
             for (size_t i = 0; i < shape.size(); ++i) {
                 if (shape[i] != tensor.get_shape()[i]) {
-                    throw std::runtime_error("Mismatch in shape sizes");
+                    OPENVINO_THROW("Mismatch in shape sizes");
                 }
             }
             for (size_t i = shape.size(); i < tensor.get_shape().size(); ++i) {
                 if (tensor.get_shape()[i] != 1) {
-                    throw std::runtime_error("Mismatch in shape sizes");
+                    OPENVINO_THROW("Mismatch in shape sizes");
                 }
             }
         }
@@ -294,34 +295,12 @@ namespace mlir {
 
 using namespace ::mlir;
 
-void loadOpenMPSymbols(llvm::orc::MangleAndInterner interner, llvm::orc::SymbolMap &symbolMap, std::string path, std::vector<std::string> symbols) {
-  // Load the OpenMP runtime library
-  const char *ompLibPath = path.data();
-  if (llvm::sys::DynamicLibrary::LoadLibraryPermanently(ompLibPath)) {
-    llvm::errs() << "Failed to load OpenMP runtime library: " << ompLibPath << "\n";
-    return;
-  }
-
-  // Define the symbols to load from the library
-  auto loadSymbol = [&](const char *symbolName) {
-    if (void *symbolAddress = llvm::sys::DynamicLibrary::SearchForAddressOfSymbol(symbolName)) {
-      symbolMap[interner(symbolName)] = llvm::orc::ExecutorSymbolDef(llvm::orc::ExecutorAddr::fromPtr(symbolAddress), llvm::JITSymbolFlags::Exported);
-    } else {
-      llvm::errs() << "Failed to load symbol: " << symbolName << "\n";
-    }
-  };
-
-  for (int i=0; i<symbols.size(); i++){
-    loadSymbol(symbols[i].data());
-  }
-
-}
-
 MLIREvaluate::MLIREvaluate(OwningOpRef<mlir::ModuleOp> _module, MlirMode mode) :
     module(std::move(_module)) {
 
+    // referencing a variable from libGcOpenclRuntime.lib to keep it
+    // linked for MLIR modules that use OpenCL runtime
     ocl_runtime_keep_alive = 0;
-    gc_runtime_keep_alive = 0;
 
     OPENVINO_MLIR_DEBUG_PRINT(
         "[ DEBUG ] Source MLIR:\n"
@@ -350,29 +329,6 @@ MLIREvaluate::MLIREvaluate(OwningOpRef<mlir::ModuleOp> _module, MlirMode mode) :
     auto maybeEngine = mlir::ExecutionEngine::create(module.get(), engineOptions);
     if (maybeEngine) {
         engine = std::move(maybeEngine.get());
-        // engine->loadLibrary("/usr/lib/x86_64-linux-gnu/libgomp.so.1");
-        // engine->registerSymbols([&](llvm::orc::MangleAndInterner interner) {
-        //     llvm::orc::SymbolMap symbolMap;
-        //     loadOpenMPSymbols(
-        //         interner,
-        //         symbolMap,
-        //         "/usr/lib/x86_64-linux-gnu/libomp.so.5",
-        //         {"__kmpc_global_thread_num", "__kmpc_for_static_init_8u", "__kmpc_for_static_fini", "__kmpc_barrier", "__kmpc_fork_call"}
-        //     );
-        //     loadOpenMPSymbols(
-        //         interner,
-        //         symbolMap,
-        //         "/home/jovyan/graph-compiler/build/lib/libGcOpenclRuntime.so",
-        //         {"gpuCreateStream", "gpuKernelGet", "gpuLaunchKernel", "gpuMemAlloc", "gpuMemFree", "gpuModuleLoad", "gpuStreamDestroy", "gpuWait"}
-        //     );
-        //     loadOpenMPSymbols(
-        //         interner,
-        //         symbolMap,                
-        //         "/home/jovyan/llvm/llvm-gc-master-patches-install/lib/libmlir_c_runner_utils.so",
-        //         {"memrefCopy"}
-        //     );
-        //     return symbolMap;
-        // });
     } else {
         llvm::errs() << "failed to construct an execution engine\n";
         abort();
