@@ -9,6 +9,7 @@
 #include "common_test_utils/test_assertions.hpp"
 #include "openvino/runtime/core.hpp"
 #include "openvino/util/file_util.hpp"
+#include <openvino/util/env_util.hpp>
 
 #include <openvino/runtime/intel_gpu/ocl/ocl.hpp>
 #include <openvino/runtime/intel_gpu/ocl/ocl_wrapper.hpp>
@@ -136,6 +137,9 @@ static std::map<size_t, ov::Tensor> allocate_input_tensors(
 }
 
 TEST(MLIRExecution, SimpleMatmulf32) {
+    if (ov::util::getenv_string("OV_MLIR_MODE") != "GC_GPU")
+        GTEST_SKIP() << "This test is only for GC_GPU MLIR mode. Set 'OV_MLIR_MODE' env variable to 'GC_GPU'";
+
     ov::Core core;
     auto model = core.read_model(
         model_full_path("matmul_64_128_f32.xml"));

@@ -20,7 +20,6 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
         set(GC_ENABLE_TEST OFF)
         set(GC_ENABLE_DNNL OFF)
         set(GC_ENABLE_LEGACY OFF)
-        set(GC_ENABLE_IMEX ON)
         set(GC_ENABLE_BINDINGS_PYTHON OFF)
         set(OV_BUILD_SHARED_LIBS_TMP ${BUILD_SHARED_LIBS})
         set(BUILD_SHARED_LIBS OFF)
@@ -32,8 +31,13 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
             GcInterface
             GcJitWrapper
             GcCpuRuntime
-            GcOpenclRuntime
     )
+
+    if (GC_ENABLE_IMEX)
+        add_definitions(-DGC_ENABLE_IMEX)
+        list(APPEND GRAPH_COMPILER_LIBS GcOpenclRuntime)
+    endif()
+
     set_property(GLOBAL PROPERTY GRAPH_COMPILER_LIBS ${GRAPH_COMPILER_LIBS})
 endif ()
 

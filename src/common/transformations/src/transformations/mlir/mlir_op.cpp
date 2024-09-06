@@ -64,11 +64,13 @@
 #endif
 
 
+#ifdef GC_ENABLE_IMEX
 extern "C" {
 // referencing a variable from libGcOpenclRuntime.lib to keep it
 // linked for MLIR modules that use OpenCL runtime
 extern int ocl_runtime_keep_alive;
 }
+#endif
 
 namespace {
 
@@ -93,10 +95,12 @@ void prepareMLIRKernelWithoutWrapper(mlir::OwningOpRef<mlir::ModuleOp>& module, 
             gc::populateCPUPipeline(pm);
             break;
         }
+#ifdef GC_ENABLE_IMEX
         case ov::mlir::MLIR_MODE_GC_GPU: {
             gc::populateGPUPipeline(pm);
             break;
         }
+#endif
 #endif
         default: {
             assert(ov::mlir::MLIR_MODE_DEFAULT);
@@ -298,9 +302,11 @@ using namespace ::mlir;
 MLIREvaluate::MLIREvaluate(OwningOpRef<mlir::ModuleOp> _module, MlirMode mode) :
     module(std::move(_module)) {
 
+#ifdef GC_ENABLE_IMEX
     // referencing a variable from libGcOpenclRuntime.lib to keep it
     // linked for MLIR modules that use OpenCL runtime
     ocl_runtime_keep_alive = 0;
+#endif
 
     OPENVINO_MLIR_DEBUG_PRINT(
         "[ DEBUG ] Source MLIR:\n"
