@@ -99,6 +99,29 @@ static ov::Tensor allocate_usm_tensor(
 }
 
 template<typename T>
+static ov::Tensor allocate_cl_tensor(
+        ov::intel_gpu::ocl::ClContext& oclContext, OpenCL* oclInstance, const ov::Shape& shape,
+        ov::element::Type type, std::vector<T> &input_values, std::vector<cl::Buffer>& keep_alive) {
+    cl_int err;
+    size_t byte_size = shape_size(shape) * type.bitwidth() / 8;
+
+    keep_alive.push_back(
+        cl::Buffer(oclInstance->_context, CL_MEM_READ_WRITE, (cl::size_type)byte_size, NULL, &err));
+
+    void* mappedPtr = oclInstance->_queue.enqueueMapBuffer(keep_alive.back(),
+                                                            CL_TRUE,
+                                                            CL_MAP_WRITE,
+                                                            0,
+                                                            (cl::size_type)byte_size);
+
+    memcpy(mappedPtr, input_values.data(), byte_size);
+
+    oclInstance->_queue.enqueueUnmapMemObject(keep_alive.back(), mappedPtr);
+
+    return oclContext.create_tensor(type, shape, keep_alive.back().get());
+}
+
+template<typename T>
 static std::vector<T> broadcast_vector(const std::vector<T>& v, size_t new_size) {
     std::vector<T> result;
     result.reserve(new_size);
@@ -120,7 +143,7 @@ static std::vector<T> broadcast_vector(const std::vector<T>& v, size_t new_size)
 template<typename T>
 static std::map<size_t, ov::Tensor> allocate_input_tensors(
         ov::CompiledModel& compiledModel,
-        std::map<size_t, std::vector<T>> &inputValues) {
+        std::map<size_t, std::vector<T>> &inputValues, bool use_usm, std::vector<cl::Buffer>& keep_alive) {
     auto context = compiledModel.get_context();
     auto& oclContext = static_cast<ov::intel_gpu::ocl::ClContext&>(context);
     auto oclInstance = std::make_shared<OpenCL>(oclContext.get());
@@ -130,7 +153,12 @@ static std::map<size_t, ov::Tensor> allocate_input_tensors(
         auto shape = input.get_shape();
         auto size = ov::shape_size(shape);
         std::vector<T> input_values = broadcast_vector(inputValues[input.get_index()], size);
-        auto tensor = allocate_usm_tensor(oclContext, oclInstance.get(), shape, input.get_element_type(), input_values);
+        ov::Tensor tensor;
+        if (use_usm) {
+            tensor = allocate_usm_tensor(oclContext, oclInstance.get(), shape, input.get_element_type(), input_values);
+        } else {
+            tensor = allocate_cl_tensor(oclContext, oclInstance.get(), shape, input.get_element_type(), input_values, keep_alive);
+        }
         input_tensors.emplace(input.get_index(), tensor);
     }
     return input_tensors;
@@ -154,7 +182,53 @@ TEST(MLIRExecution, SimpleMatmulf32) {
     std::map<size_t, std::vector<float>> input_values_map;
     input_values_map.emplace(0, std::vector<float>(1, 0.5f));
 
-    auto input_tensors = allocate_input_tensors(compiled_model, input_values_map);
+    std::vector<cl::Buffer> keep_alive;
+
+    auto input_tensors = allocate_input_tensors(compiled_model, input_values_map, true, keep_alive);
+
+    auto infer_req = compiled_model.create_infer_request();
+    for (const auto& input : input_tensors) {
+        infer_req.set_input_tensor(input.first, input.second);
+    }
+    infer_req.infer();
+
+    auto computed = infer_req.get_output_tensor(0);
+    float* result = reinterpret_cast<float*>(computed.data());
+
+    // compute reference result
+    std::vector<float> matrix_a = broadcast_vector(input_values_map.at(0), 64 * 128);
+    std::vector<float> matrix_b = read_float_array_from_binary_file(model_full_path("matmul_64_128_f32.bin"));
+    ASSERT_EQ(matrix_b.size(), 128 * 128);
+    std::vector<float> reference_result(64 * 128);
+    multiply_matrices_and_add_a(matrix_a, matrix_b, reference_result, 64, 128, 128);
+
+    // compare result with the reference
+    for (size_t i = 0; i < reference_result.size(); ++i) {
+        EXPECT_NEAR(reference_result[i], result[i], 1e-5);
+    }
+}
+
+TEST(MLIRExecution, SimpleMatmulf32CLBuffer) {
+    if (ov::util::getenv_string("OV_MLIR_MODE") != "GC_GPU")
+        GTEST_SKIP() << "This test is only for GC_GPU MLIR mode. Set 'OV_MLIR_MODE' env variable to 'GC_GPU'";
+
+    ov::Core core;
+    auto model = core.read_model(
+        model_full_path("matmul_64_128_f32.xml"));
+
+    ov::AnyMap device_config;
+    device_config[ov::hint::performance_mode.name()] = ov::hint::PerformanceMode::THROUGHPUT;
+    device_config[ov::enable_profiling.name()] = false;
+    device_config.emplace(ov::hint::inference_precision("f32"));
+
+    auto compiled_model = core.compile_model(model, "GPU", device_config);
+
+    std::map<size_t, std::vector<float>> input_values_map;
+    input_values_map.emplace(0, std::vector<float>(1, 0.5f));
+
+    std::vector<cl::Buffer> keep_alive;
+
+    auto input_tensors = allocate_input_tensors(compiled_model, input_values_map, false, keep_alive);
 
     auto infer_req = compiled_model.create_infer_request();
     for (const auto& input : input_tensors) {

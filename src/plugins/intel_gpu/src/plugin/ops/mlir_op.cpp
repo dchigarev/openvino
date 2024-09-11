@@ -53,6 +53,7 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
         ov::TensorVector output_host_tensors;
         // to keep cl_mem objects alive
         std::vector<cl_mem> cl_mem_refs;
+        cl_mem_refs.reserve(inputs.size() + outputs.size());
 
         auto process_buffer = [&stream, &cl_mem_refs](cldnn::memory::ptr mem, ov::TensorVector& tensors) {
             switch (mem->get_allocation_type()) {
@@ -63,22 +64,21 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
                     // Keep the cl_mem reference alive
                     cl_mem_refs.push_back(cl_buff);
                     tensors.push_back(make_tensor(mem->get_layout(), &cl_mem_refs.back()));
-                    std::cout << " cl_mem: " << &cl_buff;
                     break;
                 }
                 case cldnn::allocation_type::usm_host:
                 case cldnn::allocation_type::usm_shared:
                 case cldnn::allocation_type::usm_device: {
                     auto usm_ptr = mem->buffer_ptr();
-                    auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_usm*>(mem.get());
-                    auto& usm_helper = gpu_buff->get_buffer().getUsmHelper();
+                    // Seems to only occur with OOO queues sometimes. Can't reproduce this anymore, uncomment if needed.
                     // HACK: force move to device, can we do better than this?
-                    usm_helper.enqueue_memcpy(
-                        dynamic_cast<cldnn::ocl::ocl_stream&>(stream).get_cl_queue(),
-                        usm_ptr,
-                        usm_ptr,
-                        mem->get_layout().bytes_count());
-                    std::cout << " usm_ptr: " << usm_ptr;
+                    // auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_usm*>(mem.get());
+                    // auto& usm_helper = gpu_buff->get_buffer().getUsmHelper();
+                    // usm_helper.enqueue_memcpy(
+                    //     dynamic_cast<cldnn::ocl::ocl_stream&>(stream).get_cl_queue(),
+                    //     usm_ptr,
+                    //     usm_ptr,
+                    //     mem->get_layout().bytes_count());
                     tensors.push_back(make_tensor(mem->get_layout(), usm_ptr));
                     break;
                 }
@@ -88,15 +88,11 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
         };
 
         for (size_t i = 0; i < inputs.size(); i++) {
-            std::cout << "Input " << i;
             process_buffer(inputs[i], input_host_tensors);
-            std::cout << std::endl;
         }
 
         for (size_t i = 0; i < outputs.size(); i++) {
-            std::cout << "Output " << i;
             process_buffer(outputs[i], output_host_tensors);
-            std::cout << std::endl;
         }
 
 #if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
