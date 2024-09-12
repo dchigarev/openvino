@@ -22,8 +22,9 @@ static std::string model_full_path(const char* path) {
     return ov::util::make_path<char>(TEST_MODELS_DIR, path);
 }
 
-static void multiply_matrices_and_add_a(const std::vector<float>& matrix_a, const std::vector<float>& matrix_b,
-                       std::vector<float>& result, size_t rows_a, size_t cols_a, size_t cols_b) {
+template<typename T>
+static void multiply_matrices_and_add_a(const std::vector<T>& matrix_a, const std::vector<T>& matrix_b,
+                       std::vector<T>& result, size_t rows_a, size_t cols_a, size_t cols_b) {
     // Initialize the result matrix with zero values
     std::fill(result.begin(), result.end(), 0.0f);
 
@@ -40,7 +41,8 @@ static void multiply_matrices_and_add_a(const std::vector<float>& matrix_a, cons
     }
 }
 
-static std::vector<float> read_float_array_from_binary_file(const std::string& filename) {
+template<typename T>
+static std::vector<T> read_float_array_from_binary_file(const std::string& filename, size_t float_size = 4) {
     // Open the binary file in input mode and binary mode
     std::ifstream input_file(filename, std::ios::binary);
 
@@ -56,10 +58,10 @@ static std::vector<float> read_float_array_from_binary_file(const std::string& f
     input_file.seekg(0, std::ios::beg);
 
     // Calculate the number of floats in the file
-    std::size_t num_floats = file_size / sizeof(float);
+    std::size_t num_floats = file_size / float_size;
 
     // Create a vector to store the floats
-    std::vector<float> float_array(num_floats);
+    std::vector<T> float_array(num_floats);
 
     // Read the floats from the file into the vector
     if (num_floats > 0) {
@@ -197,7 +199,7 @@ TEST(MLIRExecution, SimpleMatmulf32) {
 
     // compute reference result
     std::vector<float> matrix_a = broadcast_vector(input_values_map.at(0), 64 * 128);
-    std::vector<float> matrix_b = read_float_array_from_binary_file(model_full_path("matmul_64_128_f32.bin"));
+    std::vector<float> matrix_b = read_float_array_from_binary_file<float>(model_full_path("matmul_64_128_f32.bin"));
     ASSERT_EQ(matrix_b.size(), 128 * 128);
     std::vector<float> reference_result(64 * 128);
     multiply_matrices_and_add_a(matrix_a, matrix_b, reference_result, 64, 128, 128);
@@ -241,9 +243,53 @@ TEST(MLIRExecution, SimpleMatmulf32CLBuffer) {
 
     // compute reference result
     std::vector<float> matrix_a = broadcast_vector(input_values_map.at(0), 64 * 128);
-    std::vector<float> matrix_b = read_float_array_from_binary_file(model_full_path("matmul_64_128_f32.bin"));
+    std::vector<float> matrix_b = read_float_array_from_binary_file<float>(model_full_path("matmul_64_128_f32.bin"));
     ASSERT_EQ(matrix_b.size(), 128 * 128);
     std::vector<float> reference_result(64 * 128);
+    multiply_matrices_and_add_a(matrix_a, matrix_b, reference_result, 64, 128, 128);
+
+    // compare result with the reference
+    for (size_t i = 0; i < reference_result.size(); ++i) {
+        EXPECT_NEAR(reference_result[i], result[i], 1e-5);
+    }
+}
+
+TEST(MLIRExecution, SimpleMatmulf16) {
+    if (ov::util::getenv_string("OV_MLIR_MODE") != "GC_GPU")
+        GTEST_SKIP() << "This test is only for GC_GPU MLIR mode. Set 'OV_MLIR_MODE' env variable to 'GC_GPU'";
+
+    ov::Core core;
+    auto model = core.read_model(
+        model_full_path("matmul_64_128_f16.xml"));
+
+    ov::AnyMap device_config;
+    device_config[ov::hint::performance_mode.name()] = ov::hint::PerformanceMode::THROUGHPUT;
+    device_config[ov::enable_profiling.name()] = false;
+    device_config.emplace(ov::hint::inference_precision("f16"));
+
+    auto compiled_model = core.compile_model(model, "GPU", device_config);
+
+    std::map<size_t, std::vector<ov::float16>> input_values_map;
+    input_values_map.emplace(0, std::vector<ov::float16>(1, 0.5f));
+
+    std::vector<cl::Buffer> keep_alive;
+
+    auto input_tensors = allocate_input_tensors(compiled_model, input_values_map, true, keep_alive);
+
+    auto infer_req = compiled_model.create_infer_request();
+    for (const auto& input : input_tensors) {
+        infer_req.set_input_tensor(input.first, input.second);
+    }
+    infer_req.infer();
+
+    auto computed = infer_req.get_output_tensor(0);
+    ov::float16* result = reinterpret_cast<ov::float16*>(computed.data());
+
+    // compute reference result
+    std::vector<ov::float16> matrix_a = broadcast_vector(input_values_map.at(0), 64 * 128);
+    std::vector<ov::float16> matrix_b = read_float_array_from_binary_file<ov::float16>(model_full_path("matmul_64_128_f16.bin"), 2);
+    ASSERT_EQ(matrix_b.size(), 128 * 128);
+    std::vector<ov::float16> reference_result(64 * 128);
     multiply_matrices_and_add_a(matrix_a, matrix_b, reference_result, 64, 128, 128);
 
     // compare result with the reference
