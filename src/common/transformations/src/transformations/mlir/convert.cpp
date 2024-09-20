@@ -247,7 +247,7 @@ NodePtr ngraph_to_mlir_op(MLIRContext* context, SubgraphPtr subgraph, MlirMode m
     }
     return std::make_shared<MLIROp>(
         subgraph->inputs,
-        std::make_shared<MLIREvaluate>(std::move(module), mode),
+        MLIREvaluate::create(std::move(module), mode),
         output_types,
         output_map
     );

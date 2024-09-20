@@ -12,7 +12,7 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
         FetchContent_Declare(
                 GC
                 GIT_REPOSITORY https://github.com/dchigarev/graph-compiler.git
-                GIT_TAG gpu-pip
+                GIT_TAG ov-gpu2
                 FIND_PACKAGE_ARGS NAMES GraphCompiler
         )
 
@@ -36,7 +36,7 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
 
     if (GC_ENABLE_IMEX)
         add_definitions(-DGC_ENABLE_IMEX)
-        list(APPEND GRAPH_COMPILER_LIBS GcOpenclRuntime)
+        list(APPEND GRAPH_COMPILER_LIBS GcGpuOclRuntime)
     endif()
 
     set_property(GLOBAL PROPERTY GRAPH_COMPILER_LIBS ${GRAPH_COMPILER_LIBS})

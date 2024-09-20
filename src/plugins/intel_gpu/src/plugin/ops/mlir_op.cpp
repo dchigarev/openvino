@@ -54,8 +54,9 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
         // to keep cl_mem objects alive
         std::vector<cl_mem> cl_mem_refs;
         cl_mem_refs.reserve(inputs.size() + outputs.size());
+        std::vector<bool> is_usm_ptr;
 
-        auto process_buffer = [&stream, &cl_mem_refs](cldnn::memory::ptr mem, ov::TensorVector& tensors) {
+        auto process_buffer = [&stream, &cl_mem_refs, &is_usm_ptr](cldnn::memory::ptr mem, ov::TensorVector& tensors) {
             switch (mem->get_allocation_type()) {
                 case cldnn::allocation_type::cl_mem: {
                     auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_buffer*>(mem.get());
@@ -63,13 +64,16 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
 
                     // Keep the cl_mem reference alive
                     cl_mem_refs.push_back(cl_buff);
+                    std::cout << "cl buff: " << &cl_mem_refs.back() << std::endl;
                     tensors.push_back(make_tensor(mem->get_layout(), &cl_mem_refs.back()));
+                    is_usm_ptr.push_back(false);
                     break;
                 }
                 case cldnn::allocation_type::usm_host:
                 case cldnn::allocation_type::usm_shared:
                 case cldnn::allocation_type::usm_device: {
                     auto usm_ptr = mem->buffer_ptr();
+                    std::cout << "usm ptr: " << usm_ptr << std::endl;
                     // Seems to only occur with OOO queues sometimes. Can't reproduce this anymore, uncomment if needed.
                     // HACK: force move to device, can we do better than this?
                     // auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_usm*>(mem.get());
@@ -80,6 +84,7 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
                     //     usm_ptr,
                     //     mem->get_layout().bytes_count());
                     tensors.push_back(make_tensor(mem->get_layout(), usm_ptr));
+                    is_usm_ptr.push_back(true);
                     break;
                 }
                 default:
@@ -95,23 +100,17 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
             process_buffer(outputs[i], output_host_tensors);
         }
 
-#if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
+        ov::EvaluationContext meta;
         cl_command_queue queue = nullptr;
         if (auto ocl_stream = dynamic_cast<cldnn::ocl::ocl_stream*>(&stream)) {
             queue = ocl_stream->get_cl_queue().get();
-            gpuSetThreadLocalQueue(queue);
+            meta["queue"] = queue;
         }
-#endif
+        meta["is_usm_ptr_vector"] = std::cref(is_usm_ptr);
 
         OPENVINO_ASSERT(op->evaluate(
-                        output_host_tensors, input_host_tensors/*, stream.get_cl_queue()*/),
+                        output_host_tensors, input_host_tensors, meta),
                         "[GPU] Couldn't execute MLIROp ", op->get_friendly_name());
-
-#if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
-        if (queue) {
-            gpuSetThreadLocalQueue(nullptr);
-        }
-#endif
 
         ev->set();
         return ev;
