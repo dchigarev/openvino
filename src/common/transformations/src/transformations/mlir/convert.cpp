@@ -203,7 +203,7 @@ mlir::OwningOpRef<mlir::ModuleOp> ngraph_to_mlir(MLIRContext* context,
 
 
 // This pass converts a group of nodes into a single MLIROp
-NodePtr ngraph_to_mlir_op(MLIRContext* context, SubgraphPtr subgraph, MlirMode mode) {
+NodePtr ngraph_to_mlir_op(MLIRContext* context, SubgraphPtr subgraph, MlirMode mode /*...*/) {
     mlir::OwningOpRef<mlir::ModuleOp> module = ngraph_to_mlir(context, subgraph->inputs, subgraph->nodes, subgraph->outputs);
 
     const auto& inputs = subgraph->inputs;
@@ -247,7 +247,7 @@ NodePtr ngraph_to_mlir_op(MLIRContext* context, SubgraphPtr subgraph, MlirMode m
     }
     return std::make_shared<MLIROp>(
         subgraph->inputs,
-        std::make_shared<MLIREvaluate>(std::move(module), mode),
+        MLIREvaluate::create(std::move(module), mode),
         output_types,
         output_map
     );

@@ -12,17 +12,19 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
         FetchContent_Declare(
                 GC
                 GIT_REPOSITORY https://github.com/dchigarev/graph-compiler.git
-                GIT_TAG gpu-pip
+                GIT_TAG ov-gpu2
                 FIND_PACKAGE_ARGS NAMES GraphCompiler
         )
 
         set(GC_ENABLE_OPT OFF)
         set(GC_ENABLE_TEST OFF)
         set(GC_ENABLE_DNNL OFF)
+        set(GC_ENABLE_DNNL_API OFF)
         set(GC_ENABLE_LEGACY OFF)
         set(GC_ENABLE_BINDINGS_PYTHON OFF)
         set(OV_BUILD_SHARED_LIBS_TMP ${BUILD_SHARED_LIBS})
         set(BUILD_SHARED_LIBS OFF)
+        set(GC_ENABLE_IMEX ON)
         FetchContent_MakeAvailable(GC)
         set(BUILD_SHARED_LIBS ${OV_BUILD_SHARED_LIBS_TMP})
     endif ()
@@ -36,6 +38,7 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
     if (GC_ENABLE_IMEX)
         add_definitions(-DGC_ENABLE_IMEX)
         list(APPEND GRAPH_COMPILER_LIBS GcOpenclRuntime)
+        list(APPEND GRAPH_COMPILER_LIBS GcGpuOclRuntime)
     endif()
 
     set_property(GLOBAL PROPERTY GRAPH_COMPILER_LIBS ${GRAPH_COMPILER_LIBS})

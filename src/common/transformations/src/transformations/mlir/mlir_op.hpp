@@ -15,6 +15,11 @@
 
 #include "convert_common.hpp"
 
+#ifdef GC_ENABLE_IMEX
+#include "gc/ExecutionEngine/OpenCLRuntime/OpenCLRuntimeWrappers.h"
+#include "gc/Utils/Error.h"
+#include "gc/ExecutionEngine/GPURuntime/GpuOclRuntime.h"
+#endif
 
 namespace ov {
 namespace mlir {
@@ -31,15 +36,37 @@ enum MlirMode {
     MLIR_MODE_DEFAULT,
 };
 
+class MLIROp;
 
-class MLIREvaluate {
+class MLIREvaluateBase {
+public:
+    static std::shared_ptr<MLIREvaluateBase> create(OwningOpRef<ModuleOp> module, MlirMode mode);
+
+    virtual bool invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) = 0;
+    virtual ~MLIREvaluateBase() = default;
+};
+
+class MLIREvaluateGcGPU : public MLIREvaluateBase {
+    mlir::gc::gpu::OclModuleBuilder module;
+
+public:
+    // IF no info about device (cl things):
+    // 1. hold OclBuilder and build in evaluate
+    // 2. Write "device name" as a moduleOp attribute and pass nothing to OclBuilder
+    MLIREvaluateGcGPU(OwningOpRef<ModuleOp> _module // pass nothing
+    /* OclRuntime / cl_device_id + context / cl_command_queue */);
+
+    bool invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) override;
+};
+
+class MLIREvaluate : public MLIREvaluateBase {
     OwningOpRef<ModuleOp> module;  // FIXME: needs to be kept?
     std::unique_ptr<ExecutionEngine> engine;
 
 public:
 
     MLIREvaluate(OwningOpRef<ModuleOp> _module, MlirMode mode);
-    bool invoke_packed(std::vector<void*>& args);
+    bool invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) override;
 };
 
 
@@ -48,7 +75,7 @@ using DimensionsMap = std::vector<std::vector<std::tuple<size_t, size_t>>>;
 
 
 class OPENVINO_API MLIROp : public ov::op::Op {
-    std::shared_ptr<MLIREvaluate> engine;
+    std::shared_ptr<MLIREvaluateBase> engine;
     OVOutputTypes output_types;
     DimensionsMap dimensions_map;
 
@@ -56,10 +83,12 @@ public:
 
     OPENVINO_OP("MLIROp");
 
-    MLIROp(const ov::OutputVector& args, std::shared_ptr<MLIREvaluate> engine, const OVOutputTypes& output_types, const DimensionsMap& dimensions_map);
+    MLIROp(const ov::OutputVector& args, std::shared_ptr<MLIREvaluateBase> engine, const OVOutputTypes& output_types, const DimensionsMap& dimensions_map);
     void validate_and_infer_types() override;
     NodePtr clone_with_new_inputs(const ov::OutputVector& new_args) const override;
     bool evaluate(ov::TensorVector& outputs, const ov::TensorVector& inputs) const override;
+    bool evaluate(ov::TensorVector& output_values, const ov::TensorVector& input_values, 
+                  const ov::EvaluationContext& evaluationContext) const override;
     bool has_evaluate() const override;
 };
 

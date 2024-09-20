@@ -252,7 +252,7 @@ void ProgramBuilder::CreateSingleLayerPrimitive(const std::shared_ptr<ov::Node>&
         if (op->has_evaluate()) {
             std::cout << ss.str() << " Fallback to Op::evaluate()" << std::endl;
             // If MLIROp
-            CreateMLIRSubgraphOp(*this, std::dynamic_pointer_cast<ov::op::Op>(op));
+            CreateMLIRSubgraphOp(*this, std::dynamic_pointer_cast<ov::op::Op>(op)/*...*/);
             // else
             // CreateGenericOp(*this, op);
         } else {

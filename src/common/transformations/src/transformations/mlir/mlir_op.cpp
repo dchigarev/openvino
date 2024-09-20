@@ -65,6 +65,9 @@
 
 
 #ifdef GC_ENABLE_IMEX
+#include "gc/ExecutionEngine/OpenCLRuntime/OpenCLRuntimeWrappers.h"
+#include "gc/Utils/Error.h"
+#include "gc/ExecutionEngine/GPURuntime/GpuOclRuntime.h"
 extern "C" {
 // referencing a variable from libGcOpenclRuntime.lib to keep it
 // linked for MLIR modules that use OpenCL runtime
@@ -98,6 +101,7 @@ void prepareMLIRKernelWithoutWrapper(mlir::OwningOpRef<mlir::ModuleOp>& module, 
 #ifdef GC_ENABLE_IMEX
         case ov::mlir::MLIR_MODE_GC_GPU: {
             gc::populateGPUPipeline(pm);
+            // module_builder = std::make_unique<mlir::gc::gpu::OclModuleBuilder>(module);
             break;
         }
 #endif
@@ -299,6 +303,36 @@ namespace mlir {
 
 using namespace ::mlir;
 
+std::shared_ptr<MLIREvaluateBase> MLIREvaluateBase::create(OwningOpRef<ModuleOp> module, MlirMode mode) {
+    switch (mode) {
+        case MLIR_MODE_GC_GPU:
+            return std::make_shared<MLIREvaluateGcGPU>(std::move(module));
+        case MLIR_MODE_TPP:
+        case MLIR_MODE_GC:
+        case MLIR_MODE_DEFAULT:
+            return std::make_shared<MLIREvaluate>(std::move(module), mode);
+        default:
+            throw std::runtime_error("Unsupported mode");
+    }
+}
+
+MLIREvaluateGcGPU::MLIREvaluateGcGPU(OwningOpRef<mlir::ModuleOp> _module) :
+    module(std::move(_module)) {};
+
+bool MLIREvaluateGcGPU::invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) {
+    auto cl_queue = evaluationContext.at("queue");
+    cl_command_queue queue = cl_queue.as<cl_command_queue>();
+    auto mod = gcGetOrReport(module.build(queue));
+
+    mlir::gc::gpu::OclContext ctx(mod->runtime, queue);
+    mlir::gc::gpu::StaticExecutor exec(mod);
+    auto arg_types = evaluationContext.at("arg_type").as<std::vector<bool>>();
+    for (size_t i = 0; i < args.size(); ++i) {
+        exec.arg(args[i], arg_types[i]);
+    }
+    exec(ctx);
+}
+
 MLIREvaluate::MLIREvaluate(OwningOpRef<mlir::ModuleOp> _module, MlirMode mode) :
     module(std::move(_module)) {
 
@@ -341,7 +375,21 @@ MLIREvaluate::MLIREvaluate(OwningOpRef<mlir::ModuleOp> _module, MlirMode mode) :
     }
 }
 
-bool MLIREvaluate::invoke_packed(std::vector<void*>& args) {
+bool MLIREvaluate::invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) {
+    // auto cl_queue = evaluationContext.at("queue");
+    // cl_command_queue queue = cl_queue.as<cl_command_queue>();
+
+    // // engine->module;
+    // mlir::gc::gpu::OclModuleBuilder builder(engine->module);
+    // auto mod = gcGetOrReport(builder.build(queue));
+
+    // mlir::gc::gpu::OclContext ctx(mod->runtime, queue);
+    // std::vector<void*> args;
+    // args.push_back(&ctx);
+    // args.push_back(&ctx);
+    // int64_t x = 0;
+    // args.push_back(&x);
+    // mod.main.wrappedMain(v.data());
     auto invocationResult = engine->invokePacked("entry", args);
     if (invocationResult) {
         llvm::errs() << "JIT invocation failed\n";
@@ -350,7 +398,7 @@ bool MLIREvaluate::invoke_packed(std::vector<void*>& args) {
     return true;
 }
 
-MLIROp::MLIROp(const ov::OutputVector& args, std::shared_ptr<MLIREvaluate> engine, const OVOutputTypes& output_types, const DimensionsMap& dimensions_map)
+MLIROp::MLIROp(const ov::OutputVector& args, std::shared_ptr<MLIREvaluateBase> engine, const OVOutputTypes& output_types, const DimensionsMap& dimensions_map)
     : Op(args),
         engine(engine),
         output_types(output_types),
@@ -370,6 +418,12 @@ NodePtr MLIROp::clone_with_new_inputs(const ov::OutputVector& new_args) const {
 }
 
 bool MLIROp::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inputs) const {
+    // engine == MLIREvalateCPU/GPU/Abstract
+    // if (engine->is_static/require_packed) {
+    //     engine->invoke_not_packed(...);
+    //     return true;
+    // }
+
     std::vector<MemRefDescriptor> memref_args;
     for (size_t i = 0; i < inputs.size(); ++i) {
         auto initial_shape = get_input_shape(i);
@@ -400,7 +454,46 @@ bool MLIROp::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inputs)
     });
 
     //std::cerr << "[ INFO ] Running kernel in MLIROp::evaluate\n";
-    return engine->invoke_packed(args);
+    return engine->invoke_packed(args, {});
+}
+
+bool MLIROp::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inputs, 
+                const ov::EvaluationContext& evaluationContext) const {
+    std::vector<void*> args;
+    for (size_t i = 0; i < inputs.size(); ++i) {
+        args.push_back(inputs[i].data());
+    }
+    for (size_t i = 0; i < outputs.size(); ++i) {
+        args.push_back(outputs[i].data());
+    }
+    engine->invoke_packed(args, evaluationContext);
+    // auto cl_queue = evaluationContext.at("queue");
+    // cl_command_queue queue = cl_queue.as<cl_command_queue>();
+
+    // // engine->module;
+    // mlir::gc::gpu::OclModuleBuilder builder(engine->module);
+    // auto mod = gcGetOrReport(builder.build(queue));
+
+    // mlir::gc::gpu::OclContext ctx(mod->runtime, queue);
+    // std::vector<void*> v;
+    // v.push_back(&ctx);
+    // v.push_back(&ctx);
+    // int64_t x = 0;
+    // v.push_back(&x);
+    // mod.main.wrappedMain(v.data());
+    // if (mod->isStatic) {
+    //     mlir::gc::gpu::StaticExecutor exec(mod);
+    //     for (size_t i = 0; i < inputs.size(); ++i) {
+    //         exec.arg(inputs[i].data());
+    //     }
+    //     for (size_t i = 0; i < outputs.size(); ++i) {
+    //         exec.arg(outputs[i].data());
+    //     }
+    //     exec(ctx);
+    // } else {
+    //     OPENVINO_THROW("Dynamic shapes are not supported in GPU MLIR execution");
+    // }
+
 }
 
 bool MLIROp::has_evaluate() const {

@@ -45,7 +45,7 @@ OV_ROOT=$(git rev-parse --show-toplevel)
 BENCH_ROOT=$(realpath "${OV_ROOT}/tools/mlir_bench")
 
 MODEL_GEN=$(realpath "${BENCH_ROOT}/ov_model_gen.py")
-BENCH_RUNNER=benchmark_app
+BENCH_RUNNER=${OV_ROOT}/bin/intel64/Release/benchmark_app
 
 # Initial validation.
 if ! [ -d "${OV_ROOT}" ]; then
