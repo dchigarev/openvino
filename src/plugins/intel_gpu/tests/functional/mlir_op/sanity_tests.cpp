@@ -25,17 +25,22 @@ static std::string model_full_path(const char* path) {
 template<typename T>
 static void multiply_matrices_and_add_a(const std::vector<T>& matrix_a, const std::vector<T>& matrix_b,
                        std::vector<T>& result, size_t rows_a, size_t cols_a, size_t cols_b) {
-    // Initialize the result matrix with zero values
-    std::fill(result.begin(), result.end(), 0.0f);
+    // Initialize the result matrix with zero values (f32 accumulator)
+    std::vector<float> tmp(result.size(), 0.0f);
 
     // Matrix multiplication logic using linear indexing
     for (size_t i = 0; i < rows_a; ++i) {
         for (size_t j = 0; j < cols_b; ++j) {
             for (size_t k = 0; k < cols_a; ++k) {
-                result[i * cols_b + j] += matrix_a[i * cols_a + k] * matrix_b[k * cols_b + j];
+                tmp[i * cols_b + j] += matrix_a[i * cols_a + k] * matrix_b[k * cols_b + j];
             }
         }
     }
+
+    for (size_t i = 0; i < result.size(); i++) {
+        result[i] = tmp[i]; // cast back to T(possibly f16)
+    }
+
     for (size_t i = 0; i < matrix_a.size(); i++) {
         result[i] += matrix_a[i];
     }
