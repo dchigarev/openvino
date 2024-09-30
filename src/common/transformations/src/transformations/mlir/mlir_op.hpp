@@ -39,7 +39,9 @@ class MLIROp;
 
 class MLIREvaluateBase {
 public:
-    static std::shared_ptr<MLIREvaluateBase> create(OwningOpRef<ModuleOp> module, MlirMode mode);
+    static std::shared_ptr<MLIREvaluateBase> create(OwningOpRef<ModuleOp> module,
+                                                    MlirMode mode,
+                                                    std::shared_ptr<ov::EvaluationContext> ex_context);
 
     virtual bool requires_packed_args() const = 0;
     virtual bool invoke(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) = 0;
@@ -50,13 +52,13 @@ public:
 #if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
 
 class MLIREvaluateGcGPU : public MLIREvaluateBase {
-    gc::gpu::OclModuleBuilder module;
+    std::shared_ptr<const gc::gpu::OclModule> module;
     // TODO: keep compiled oclModule instead of OclModuleBuilder
     // std::shared_ptr<mlir::gc::gpu::OclModule> oclModule;
 public:
-    MLIREvaluateGcGPU(OwningOpRef<ModuleOp> _module/*, OclRuntime / cl_device_id + context / cl_command_queue */);
+    MLIREvaluateGcGPU(OwningOpRef<ModuleOp> _module, std::shared_ptr<ov::EvaluationContext> loweringContext);
 
-    bool requires_packed_args() const override { /*return !oclModule->isStatic;*/ return false; }
+    bool requires_packed_args() const override { return !module->isStatic; }
     bool invoke(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) override;
     bool invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) override;
 };

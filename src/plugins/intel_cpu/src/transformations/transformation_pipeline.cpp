@@ -662,7 +662,7 @@ void Transformations::PreLpt(const std::vector<ov::element::Type>& defaultPrecis
     CPU_REGISTER_PASS_COMMON(manager, ov::pass::KeepConstAndDecompression);
     CPU_REGISTER_PASS_COMMON(manager, ov::pass::ConstantFolding);
 
-    ov::pass::transformMLIR(model);
+    ov::pass::transformMLIR(model, std::make_shared<ov::EvaluationContext>());
 
     manager.run_passes(model);
 }

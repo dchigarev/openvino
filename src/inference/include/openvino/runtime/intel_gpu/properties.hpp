@@ -142,6 +142,14 @@ static constexpr auto surface = "GPU_SURFACE";
  */
 static constexpr auto buffer = "GPU_BUFFER";
 
+// TODO: maybe find more suitable place for this property (should be accessible from both
+// src/plugins/intel_gpu/.../mlir_op.cpp and src/common/transformations/.../mlir_op.cpp)
+/**
+ * @brief This key identifies whether the kernel argument at [i] position is USM pointer
+ * @ingroup ov_runtime_ocl_gpu_prop_cpp_api
+ */
+static constexpr Property<std::vector<bool>> is_kernel_arg_usm{"IS_KERNEL_ARG_USM"};
+
 }  // namespace memory_type
 
 /**

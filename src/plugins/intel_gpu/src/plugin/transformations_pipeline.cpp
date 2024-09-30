@@ -848,7 +848,14 @@ void TransformationsPipeline::apply(std::shared_ptr<ov::Model> func) {
         pass_config->disable<ov::pass::RoPEFusionIOSlicing>();
         pass_config->disable<ov::pass::RoPEShareCosSin>();
 
-        ov::pass::transformMLIR(func);
+        auto loweringContext = std::make_shared<ov::EvaluationContext>();
+        auto it = m_context->get_property().find(ov::intel_gpu::ocl_context.name());
+        if (it != m_context->get_property().end()) {
+            // We assume here that there's only one device per context and that an
+            // actual device will be extracted later by the 'mlir_op'.
+            loweringContext->insert(ov::intel_gpu::ocl_context(it->second.as<ov::intel_gpu::gpu_handle_param>()));
+        }
+        ov::pass::transformMLIR(func, loweringContext);
 
         // This is supposed to be the last pass to ensure that we don't have name collisions until
         // GPU plugin stops using friendly names for program creation

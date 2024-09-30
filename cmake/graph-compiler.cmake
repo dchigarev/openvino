@@ -12,7 +12,7 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
         FetchContent_Declare(
                 GC
                 GIT_REPOSITORY https://github.com/dchigarev/graph-compiler.git
-                GIT_TAG ov-gpu2
+                GIT_TAG fresh_ov_gpu
                 FIND_PACKAGE_ARGS NAMES GraphCompiler
         )
 

@@ -65,6 +65,8 @@
 #ifdef GC_ENABLE_IMEX
 #include "gc/Utils/Error.h"
 #include "gc/ExecutionEngine/GPURuntime/GpuOclRuntime.h"
+#include "openvino/runtime/intel_gpu/remote_properties.hpp"
+#include "openvino/runtime/intel_gpu/properties.hpp"
 #endif
 #endif
 
@@ -173,7 +175,7 @@ std::unique_ptr<llvm::Module> lowerToLLVMIR(Operation* module, llvm::LLVMContext
     std::string triple = "x86_64-linux-gnu";
     std::string cpuName = "alderlake";  // sapphirerapids, nehalem, etc.
     std::string fpuName = "avx2";       //  sse4.2, avx, avx2, avx512bf16, etc.
-    bool printLLVM = ov::util::getenv_bool("OV_PRINT_MLIR_FINAL", false);
+    bool printLLVM = false;
     auto codeGenOpt = 2;
 
     // Specify target machine
@@ -289,11 +291,13 @@ namespace mlir {
 
 using namespace ::mlir;
 
-std::shared_ptr<MLIREvaluateBase> MLIREvaluateBase::create(OwningOpRef<ModuleOp> module, MlirMode mode) {
+std::shared_ptr<MLIREvaluateBase> MLIREvaluateBase::create(OwningOpRef<ModuleOp> module,
+                                                           MlirMode mode,
+                                                           std::shared_ptr<ov::EvaluationContext> loweringContext) {
     switch (mode) {
         #if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
         case MLIR_MODE_GC_GPU:
-            return std::make_shared<MLIREvaluateGcGPU>(std::move(module));
+            return std::make_shared<MLIREvaluateGcGPU>(std::move(module), loweringContext);
         #endif
         case MLIR_MODE_TPP:
         case MLIR_MODE_GC:
@@ -306,26 +310,69 @@ std::shared_ptr<MLIREvaluateBase> MLIREvaluateBase::create(OwningOpRef<ModuleOp>
 
 #if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
 
-MLIREvaluateGcGPU::MLIREvaluateGcGPU(OwningOpRef<mlir::ModuleOp> _module) :
-    module(std::move(_module)) {/*TODO: take device info and build OclModule here*/};
+cl_device_id extract_device_from_context(cl_context context) {
+    size_t devices_size;
+    cl_int err = clGetContextInfo(context, CL_CONTEXT_DEVICES, 0, NULL, &devices_size);
+    if (err != CL_SUCCESS) {
+        OPENVINO_THROW("Error getting context info: ", err);
+    }
+    if (devices_size / sizeof(cl_device_id) != 1) {
+        OPENVINO_THROW("Expected exactly one device in the context, got ", devices_size);
+    }
+
+    cl_device_id devices;
+    err = clGetContextInfo(context, CL_CONTEXT_DEVICES, devices_size, &devices, NULL);
+    if (err != CL_SUCCESS) {
+        OPENVINO_THROW("Error getting device IDs: ", err);
+    }
+
+    return devices;
+}
+
+MLIREvaluateGcGPU::MLIREvaluateGcGPU(OwningOpRef<mlir::ModuleOp> _module, std::shared_ptr<ov::EvaluationContext> loweringContext) {
+    OPENVINO_MLIR_DEBUG_PRINT(
+        "[ DEBUG ] Source MLIR:\n"
+        "-----------------------------------------\n");
+    OPENVINO_MLIR_DEBUG(_module->dump());
+    OPENVINO_MLIR_DEBUG_PRINT(
+        "-----------------------------------------\n");
+
+    gc::gpu::OclModuleBuilder builder(std::move(_module));
+
+    auto it = loweringContext->find(ov::intel_gpu::ocl_context.name());
+    if (it == loweringContext->end()) {
+        OPENVINO_THROW("No cl_context provided for OpenCL execution");
+    }
+    // QUESTION: are we sure that there's always only one device per context?
+    // QUESTION: may we pass context as void* directly to 'builder.build()' and make it responsible
+    // for extracting the device?
+    auto context = reinterpret_cast<cl_context>(it->second.as<ov::intel_gpu::gpu_handle_param>());
+    module = gcGetOrReport(builder.build(extract_device_from_context(context), context));
+
+    // gc::gpu::OclModule::dump is not implemented yet
+    // OPENVINO_MLIR_DEBUG_PRINT(
+    //     "[ DEBUG ] Target LLVM:\n"
+    //     "-----------------------------------------\n");
+    // OPENVINO_MLIR_DEBUG(module->dump());
+    // OPENVINO_MLIR_DEBUG_PRINT(
+    //     "-----------------------------------------\n");
+};
 
 bool MLIREvaluateGcGPU::invoke(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) {
-    cl_command_queue queue;
-    if (auto it = evaluationContext.find("queue"); it != evaluationContext.end()) {
-        queue = it->second.as<cl_command_queue>();
-    } else {
+    auto it = evaluationContext.find(ov::intel_gpu::ocl_queue.name());
+    if (it == evaluationContext.end()) {
         OPENVINO_THROW("No queue provided for OpenCL execution");
     }
+    cl_command_queue queue = reinterpret_cast<cl_command_queue>(it->second.as<ov::intel_gpu::gpu_handle_param>());
 
-    auto it = evaluationContext.find("is_usm_ptr_vector");
+    it = evaluationContext.find(ov::intel_gpu::memory_type::is_kernel_arg_usm.name());
     if (it == evaluationContext.end()) {
-        OPENVINO_THROW("No is_usm_ptr_vector provided for OpenCL execution");
+        OPENVINO_THROW("No is_kernel_arg_usm provided for OpenCL execution");
     }
-    const std::vector<bool>& arg_types = it->second.as<std::reference_wrapper<const std::vector<bool>>>();
+    std::vector<bool> arg_types = it->second.as<std::vector<bool>>();
 
-    auto mod = gcGetOrReport(module.build(queue));
-    gc::gpu::OclContext ctx(mod->runtime, queue);
-    gc::gpu::StaticExecutor exec(mod);
+    gc::gpu::OclContext ctx(module->runtime, queue);
+    gc::gpu::StaticExecutor exec(module);
 
     for (size_t i = 0; i < args.size(); ++i) {
         exec.arg(args[i], arg_types[i]);
@@ -335,19 +382,31 @@ bool MLIREvaluateGcGPU::invoke(std::vector<void*>& args, const ov::EvaluationCon
 }
 
 bool MLIREvaluateGcGPU::invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) {
-    OPENVINO_THROW_NOT_IMPLEMENTED("MLIREvaluateGcGPU::invoke_packed is not yet implemented");
-    return false;
-    // auto cl_queue = evaluationContext.at("queue");
-    // cl_command_queue queue = cl_queue.as<cl_command_queue>();
-    // auto mod = gcGetOrReport(module.build(queue));
+    auto it = evaluationContext.find(ov::intel_gpu::ocl_queue.name());
+    if (it == evaluationContext.end()) {
+        OPENVINO_THROW("No queue provided for OpenCL execution");
+    }
+    cl_command_queue queue = reinterpret_cast<cl_command_queue>(it->second.as<ov::intel_gpu::gpu_handle_param>());
 
-    // gc::gpu::OclContext ctx(mod->runtime, queue);
-    // gc::gpu::DynamicExecutor exec(mod);
-    // for (size_t i = 0; i < args.size(); i+=4) {
-    //     exec.arg(args[i], args[i + 1], args[i + 2], args[i + 3]);
-    // }
-    // exec(ctx);
-    // return true;
+    it = evaluationContext.find(ov::intel_gpu::memory_type::is_kernel_arg_usm.name());
+    if (it == evaluationContext.end()) {
+        OPENVINO_THROW("No is_kernel_arg_usm provided for OpenCL execution");
+    }
+    std::vector<bool> argTypes = it->second.as<std::vector<bool>>();
+
+    gc::gpu::OclContext ctx(module->runtime, queue);
+    gc::gpu::DynamicExecutor exec(module);
+    for (size_t i = 0; i < args.size(); i+=4) {
+        exec.arg(
+            /*alignedPtr=*/args[i],
+            /*rank=*/reinterpret_cast<size_t>(args[i + 1]),
+            /*shape=*/reinterpret_cast<int64_t*>(args[i + 2]),
+            /*strides=*/reinterpret_cast<int64_t*>(args[i + 3]),
+            /*isUsm=*/argTypes[i]
+        );
+    }
+    exec(ctx);
+    return true;
 }
 
 #endif // GRAPH_COMPILER && GC_ENABLE_IMEX
