@@ -52,7 +52,6 @@
 #include "mlir/Target/LLVMIR/Dialect/All.h"
 #include "mlir/Target/LLVMIR/Export.h"
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
-#include <openvino/util/env_util.hpp>
 
 #ifdef TPP_MLIR // If TPP is available
 #include "TPP/PassBundles.h"
@@ -329,6 +328,8 @@ cl_device_id extract_device_from_context(cl_context context) {
     return devices;
 }
 
+
+
 MLIREvaluateGcGPU::MLIREvaluateGcGPU(OwningOpRef<mlir::ModuleOp> _module, std::shared_ptr<ov::EvaluationContext> loweringContext) {
     OPENVINO_MLIR_DEBUG_PRINT(
         "[ DEBUG ] Source MLIR:\n"
@@ -359,43 +360,33 @@ MLIREvaluateGcGPU::MLIREvaluateGcGPU(OwningOpRef<mlir::ModuleOp> _module, std::s
 };
 
 bool MLIREvaluateGcGPU::invoke(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) {
-    auto it = evaluationContext.find(ov::intel_gpu::ocl_queue.name());
-    if (it == evaluationContext.end()) {
-        OPENVINO_THROW("No queue provided for OpenCL execution");
-    }
-    cl_command_queue queue = reinterpret_cast<cl_command_queue>(it->second.as<ov::intel_gpu::gpu_handle_param>());
+    gc::gpu::OclContext ctx = build_ocl_context(evaluationContext);
+    gc::gpu::StaticExecutor exec(module);
 
-    it = evaluationContext.find(ov::intel_gpu::memory_type::is_kernel_arg_usm.name());
+    auto it = evaluationContext.find(ov::intel_gpu::memory_type::is_kernel_arg_usm.name());
     if (it == evaluationContext.end()) {
         OPENVINO_THROW("No is_kernel_arg_usm provided for OpenCL execution");
     }
     std::vector<bool> arg_types = it->second.as<std::vector<bool>>();
 
-    gc::gpu::OclContext ctx(module->runtime, queue);
-    gc::gpu::StaticExecutor exec(module);
-
     for (size_t i = 0; i < args.size(); ++i) {
         exec.arg(args[i], arg_types[i]);
     }
     exec(ctx);
+    // Should we 'wait()' here?
+    // ctx.finish();
     return true;
 }
 
 bool MLIREvaluateGcGPU::invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) {
-    auto it = evaluationContext.find(ov::intel_gpu::ocl_queue.name());
-    if (it == evaluationContext.end()) {
-        OPENVINO_THROW("No queue provided for OpenCL execution");
-    }
-    cl_command_queue queue = reinterpret_cast<cl_command_queue>(it->second.as<ov::intel_gpu::gpu_handle_param>());
+    gc::gpu::OclContext ctx = build_ocl_context(evaluationContext);
+    gc::gpu::DynamicExecutor exec(module);
 
-    it = evaluationContext.find(ov::intel_gpu::memory_type::is_kernel_arg_usm.name());
+    auto it = evaluationContext.find(ov::intel_gpu::memory_type::is_kernel_arg_usm.name());
     if (it == evaluationContext.end()) {
         OPENVINO_THROW("No is_kernel_arg_usm provided for OpenCL execution");
     }
     std::vector<bool> argTypes = it->second.as<std::vector<bool>>();
-
-    gc::gpu::OclContext ctx(module->runtime, queue);
-    gc::gpu::DynamicExecutor exec(module);
     for (size_t i = 0; i < args.size(); i+=4) {
         exec.arg(
             /*alignedPtr=*/args[i],
@@ -406,7 +397,28 @@ bool MLIREvaluateGcGPU::invoke_packed(std::vector<void*>& args, const ov::Evalua
         );
     }
     exec(ctx);
+    // Should we 'wait()' here?
+    // ctx.finish();
     return true;
+}
+
+gc::gpu::OclContext MLIREvaluateGcGPU::build_ocl_context(const ov::EvaluationContext& evaluationContext) {
+    auto it = evaluationContext.find(ov::intel_gpu::ocl_queue.name());
+    if (it == evaluationContext.end()) {
+        OPENVINO_THROW("No queue provided for OpenCL execution");
+    }
+    cl_command_queue queue = reinterpret_cast<cl_command_queue>(it->second.as<ov::intel_gpu::gpu_handle_param>());
+
+    uint32_t waitListLen = 0;
+    std::vector<ov::intel_gpu::gpu_handle_param> waitList;
+
+    it = evaluationContext.find(ov::intel_gpu::wait_list.name());
+    if (it != evaluationContext.end()) {
+        waitList = it->second.as<std::vector<ov::intel_gpu::gpu_handle_param>>();
+        waitListLen = waitList.size();
+    }
+
+    return gc::gpu::OclContext(module->runtime, queue, waitListLen, reinterpret_cast<cl_event*>(waitList.data()));
 }
 
 #endif // GRAPH_COMPILER && GC_ENABLE_IMEX

@@ -93,6 +93,15 @@ static constexpr Property<gpu_handle_param> ocl_queue{"OCL_QUEUE"};
  */
 static constexpr Property<gpu_handle_param> va_device{"VA_DEVICE"};
 
+// TODO: maybe find more suitable place for this property (should be accessible from both
+// src/plugins/intel_gpu/.../mlir_op.cpp and src/common/transformations/.../mlir_op.cpp)
+/**
+ * @brief This key identifies an event list to wait for a kernel execution.
+ * (this one is passed as evaluation context to a mlir_op)
+ * @ingroup ov_runtime_ocl_gpu_cpp_api
+ */
+static constexpr Property<std::vector<gpu_handle_param>> wait_list{"EVENTS_WAIT_LIST"};
+
 /**
  * @brief Enum to define the type of the shared memory buffer
  * @ingroup ov_runtime_ocl_gpu_cpp_api

@@ -53,14 +53,16 @@ public:
 
 class MLIREvaluateGcGPU : public MLIREvaluateBase {
     std::shared_ptr<const gc::gpu::OclModule> module;
-    // TODO: keep compiled oclModule instead of OclModuleBuilder
-    // std::shared_ptr<mlir::gc::gpu::OclModule> oclModule;
+
 public:
     MLIREvaluateGcGPU(OwningOpRef<ModuleOp> _module, std::shared_ptr<ov::EvaluationContext> loweringContext);
 
     bool requires_packed_args() const override { return !module->isStatic; }
     bool invoke(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) override;
     bool invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) override;
+
+private:
+    gc::gpu::OclContext build_ocl_context(const ov::EvaluationContext& evaluationContext);
 };
 
 #endif // GRAPH_COMPILER && GC_ENABLE_IMEX

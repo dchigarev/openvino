@@ -98,8 +98,7 @@ struct OpenCL {
         _context = cl::Context(context, true);
         _device = cl::Device(_context.getInfo<CL_CONTEXT_DEVICES>()[0].get(), true);
 
-        // cl_command_queue_properties props = _out_of_order_queue ? CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE : CL_NONE;
-        cl_command_queue_properties props = 0;
+        cl_command_queue_properties props = _out_of_order_queue ? CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE : CL_NONE;
         _queue = cl::CommandQueue(_context, _device, props);
 
         auto extensions = _device.getInfo<CL_DEVICE_EXTENSIONS>();

@@ -11,8 +11,8 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
 
         FetchContent_Declare(
                 GC
-                GIT_REPOSITORY https://github.com/dchigarev/graph-compiler.git
-                GIT_TAG fresh_ov_gpu
+                GIT_REPOSITORY https://github.com/intel/graph-compiler.git
+                GIT_TAG main
                 FIND_PACKAGE_ARGS NAMES GraphCompiler
         )
 

@@ -1,10 +1,6 @@
 // Copyright (C) 2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
-
-#include "ocl/ocl_device_detector.hpp"
-#include "ocl/ocl_common.hpp"
-
 #include "intel_gpu/plugin/common_utils.hpp"
 #include "intel_gpu/runtime/internal_properties.hpp"
 #include "intel_gpu/runtime/tensor_accessor.hpp"
@@ -13,11 +9,9 @@
 #include "intel_gpu/primitives/generic_primitive.hpp"
 #include "ocl/ocl_memory.hpp"
 
-#include <iostream>
-#include <fstream>
-
 #if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
 #include "runtime/ocl/ocl_stream.hpp"
+#include "runtime/ocl/ocl_base_event.hpp"
 #include "openvino/runtime/intel_gpu/remote_properties.hpp"
 #include "openvino/runtime/intel_gpu/properties.hpp"
 #endif
@@ -39,15 +33,6 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
             cldnn::stream& stream,
             const std::vector<cldnn::memory::ptr>& inputs,
             const std::vector<cldnn::memory::ptr>& outputs) {
-        // Synchronization as evalute() may be a CPU code
-        if (stream.get_queue_type() == cldnn::QueueTypes::out_of_order) {
-            for (auto& ev : dependent_events) {
-                ev->wait();
-            }
-        } else {
-            stream.finish();
-        }
-
         cldnn::event::ptr ev = stream.create_user_event(false);
 
         ov::TensorVector input_host_tensors;
@@ -100,6 +85,14 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
             meta.insert(ov::intel_gpu::ocl_queue(queue));
         }
         meta.insert(ov::intel_gpu::memory_type::is_kernel_arg_usm(is_usm_ptr));
+
+        std::vector<ov::intel_gpu::gpu_handle_param> waitList;
+        if (stream.get_queue_type() == cldnn::QueueTypes::out_of_order) {
+            for (auto& ev : dependent_events) {
+                waitList.push_back(dynamic_cast<cldnn::ocl::ocl_base_event*>(ev.get()));
+            }
+        }
+        meta.insert(ov::intel_gpu::wait_list(waitList));
 
         OPENVINO_ASSERT(op->evaluate(
                         output_host_tensors, input_host_tensors, meta),
