@@ -8,13 +8,11 @@
 #include "intel_gpu/plugin/program_builder.hpp"
 #include "intel_gpu/primitives/generic_primitive.hpp"
 #include "ocl/ocl_memory.hpp"
-
-#if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
 #include "runtime/ocl/ocl_stream.hpp"
 #include "runtime/ocl/ocl_base_event.hpp"
+
 #include "openvino/runtime/intel_gpu/remote_properties.hpp"
 #include "openvino/runtime/intel_gpu/properties.hpp"
-#endif
 
 namespace ov {
 namespace op {

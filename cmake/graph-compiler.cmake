@@ -16,9 +16,9 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
                 FIND_PACKAGE_ARGS NAMES GraphCompiler
         )
 
-        set(GC_ENABLE_OPT OFF)
+        set(GC_ENABLE_IMEX ${ENABLE_INTEL_GPU})
+        set(GC_ENABLE_TOOLS OFF)
         set(GC_ENABLE_TEST OFF)
-        set(GC_ENABLE_DNNL OFF)
         set(GC_ENABLE_DNNL_API OFF)
         set(GC_ENABLE_LEGACY OFF)
         set(GC_ENABLE_BINDINGS_PYTHON OFF)
@@ -35,7 +35,6 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
     )
 
     if (GC_ENABLE_IMEX)
-        add_definitions(-DGC_ENABLE_IMEX)
         list(APPEND GRAPH_COMPILER_LIBS GcGpuOclRuntime)
     endif()
 

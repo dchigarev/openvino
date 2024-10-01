@@ -61,7 +61,7 @@
 #ifdef GRAPH_COMPILER
 #include "gc/Transforms/Passes.h"
 
-#ifdef GC_ENABLE_IMEX
+#ifdef GC_USE_IMEX // GC_GPU requires IMEX support
 #include "gc/Utils/Error.h"
 #include "gc/ExecutionEngine/GPURuntime/GpuOclRuntime.h"
 #include "openvino/runtime/intel_gpu/remote_properties.hpp"
@@ -294,7 +294,7 @@ std::shared_ptr<MLIREvaluateBase> MLIREvaluateBase::create(OwningOpRef<ModuleOp>
                                                            MlirMode mode,
                                                            std::shared_ptr<ov::EvaluationContext> loweringContext) {
     switch (mode) {
-        #if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
+        #ifdef GC_USE_IMEX // GC_GPU requires IMEX support
         case MLIR_MODE_GC_GPU:
             return std::make_shared<MLIREvaluateGcGPU>(std::move(module), loweringContext);
         #endif
@@ -307,7 +307,7 @@ std::shared_ptr<MLIREvaluateBase> MLIREvaluateBase::create(OwningOpRef<ModuleOp>
     }
 }
 
-#if defined(GRAPH_COMPILER) && defined(GC_ENABLE_IMEX)
+#ifdef GC_USE_IMEX // GC_GPU requires IMEX support
 
 cl_device_id extract_device_from_context(cl_context context) {
     size_t devices_size;
@@ -421,7 +421,7 @@ gc::gpu::OclContext MLIREvaluateGcGPU::build_ocl_context(const ov::EvaluationCon
     return gc::gpu::OclContext(module->runtime, queue, waitListLen, reinterpret_cast<cl_event*>(waitList.data()));
 }
 
-#endif // GRAPH_COMPILER && GC_ENABLE_IMEX
+#endif // GC_USE_IMEX
 
 MLIREvaluate::MLIREvaluate(OwningOpRef<mlir::ModuleOp> _module, MlirMode mode) :
     module(std::move(_module)) {
