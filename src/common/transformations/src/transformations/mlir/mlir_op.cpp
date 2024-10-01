@@ -490,6 +490,7 @@ NodePtr MLIROp::clone_with_new_inputs(const ov::OutputVector& new_args) const {
 bool MLIROp::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inputs, const ov::EvaluationContext& evaluationContext) const {
     if (!engine->requires_packed_args()) {
         std::vector<void*> args;
+        args.reserve(inputs.size() + outputs.size());
         for (size_t i = 0; i < inputs.size(); ++i) {
             args.push_back(inputs[i].data());
         }

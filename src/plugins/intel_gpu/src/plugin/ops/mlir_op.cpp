@@ -35,9 +35,12 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
             const std::vector<cldnn::memory::ptr>& outputs) {
         cldnn::event::ptr ev = stream.create_user_event(false);
 
-        ov::TensorVector input_host_tensors;
-        ov::TensorVector output_host_tensors;
+        ov::TensorVector input_gpu_tensors;
+        ov::TensorVector output_gpu_tensors;
         std::vector<bool> is_usm_ptr;
+        input_gpu_tensors.reserve(inputs.size());
+        output_gpu_tensors.reserve(outputs.size());
+        is_usm_ptr.reserve(inputs.size() + outputs.size());
 
         auto process_buffer = [&stream, &is_usm_ptr](cldnn::memory::ptr mem, ov::TensorVector& tensors) {
             switch (mem->get_allocation_type()) {
@@ -72,11 +75,11 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
         };
 
         for (size_t i = 0; i < inputs.size(); i++) {
-            process_buffer(inputs[i], input_host_tensors);
+            process_buffer(inputs[i], input_gpu_tensors);
         }
 
         for (size_t i = 0; i < outputs.size(); i++) {
-            process_buffer(outputs[i], output_host_tensors);
+            process_buffer(outputs[i], output_gpu_tensors);
         }
 
         ov::EvaluationContext meta;
@@ -86,16 +89,23 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
         }
         meta.insert(ov::intel_gpu::memory_type::is_kernel_arg_usm(is_usm_ptr));
 
-        std::vector<ov::intel_gpu::gpu_handle_param> waitList;
+        std::vector<ov::intel_gpu::gpu_handle_param> wait_list;
         if (stream.get_queue_type() == cldnn::QueueTypes::out_of_order) {
+            wait_list.reserve(dependent_events.size());
             for (auto& ev : dependent_events) {
-                waitList.push_back(dynamic_cast<cldnn::ocl::ocl_base_event*>(ev.get()));
+                if (auto ocl_ev = dynamic_cast<cldnn::ocl::ocl_base_event*>(ev.get())) {
+                    wait_list.push_back(ocl_ev);
+                } else {
+                    // TODO: maybe we should simply wait this event instead of throwing an error?
+                    // ev->wait();
+                    OPENVINO_THROW("Unsupported event type");
+                }
             }
         }
-        meta.insert(ov::intel_gpu::wait_list(waitList));
+        meta.insert(ov::intel_gpu::wait_list(wait_list));
 
         OPENVINO_ASSERT(op->evaluate(
-                        output_host_tensors, input_host_tensors, meta),
+                        output_gpu_tensors, input_gpu_tensors, meta),
                         "[GPU] Couldn't execute MLIROp ", op->get_friendly_name());
 
         ev->set();
