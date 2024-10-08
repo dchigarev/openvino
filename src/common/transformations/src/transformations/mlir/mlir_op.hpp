@@ -63,6 +63,7 @@ public:
 
 private:
     gc::gpu::OclContext build_ocl_context(const ov::EvaluationContext& evaluationContext);
+    static void maybe_set_result_event(const ov::EvaluationContext& evaluationContext, gc::gpu::OclContext& ctx);
 };
 
 #endif // GC_USE_IMEX

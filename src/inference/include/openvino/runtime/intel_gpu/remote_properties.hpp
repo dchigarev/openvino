@@ -102,6 +102,16 @@ static constexpr Property<gpu_handle_param> va_device{"VA_DEVICE"};
  */
 static constexpr Property<std::vector<gpu_handle_param>> wait_list{"EVENTS_WAIT_LIST"};
 
+// TODO: maybe find more suitable place for this property (should be accessible from both
+// src/plugins/intel_gpu/.../mlir_op.cpp and src/common/transformations/.../mlir_op.cpp)
+/**
+ * @brief This key identifies a pointer to a cl::Event that should be set with
+ * the result cl_event of a kernel execution.
+ * (this one is passed as evaluation context to a mlir_op)
+ * @ingroup ov_runtime_ocl_gpu_cpp_api
+ */
+static constexpr Property<gpu_handle_param> result_event{"RESULT_EVENT"};
+
 /**
  * @brief Enum to define the type of the shared memory buffer
  * @ingroup ov_runtime_ocl_gpu_cpp_api

@@ -31,7 +31,8 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
             cldnn::stream& stream,
             const std::vector<cldnn::memory::ptr>& inputs,
             const std::vector<cldnn::memory::ptr>& outputs) {
-        cldnn::event::ptr ev = stream.create_user_event(false);
+        // set event at its constructor in case of an 'in-order' queue
+        cldnn::event::ptr ev = stream.create_user_event(stream.get_queue_type() == cldnn::QueueTypes::in_order);
 
         ov::TensorVector input_gpu_tensors;
         ov::TensorVector output_gpu_tensors;
@@ -87,12 +88,12 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
         }
         meta.insert(ov::intel_gpu::memory_type::is_kernel_arg_usm(is_usm_ptr));
 
-        std::vector<ov::intel_gpu::gpu_handle_param> wait_list;
+        std::vector<ov::intel_gpu::gpu_handle_param> events_list;
         if (stream.get_queue_type() == cldnn::QueueTypes::out_of_order) {
-            wait_list.reserve(dependent_events.size());
+            events_list.reserve(dependent_events.size() + 1);
             for (auto& ev : dependent_events) {
                 if (auto ocl_ev = dynamic_cast<cldnn::ocl::ocl_base_event*>(ev.get())) {
-                    wait_list.push_back(ocl_ev);
+                    events_list.push_back(ocl_ev->get().get());
                 } else {
                     // TODO: maybe we should simply wait this event instead of throwing an error?
                     // ev->wait();
@@ -100,13 +101,18 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
                 }
             }
         }
-        meta.insert(ov::intel_gpu::wait_list(wait_list));
+        meta.insert(ov::intel_gpu::wait_list(events_list));
+
+        if (auto ocl_ev = dynamic_cast<cldnn::ocl::ocl_base_event*>(ev.get())) {
+            cl::Event* cl_ev = &ocl_ev->get();
+            meta.insert(ov::intel_gpu::result_event(cl_ev));
+        } else {
+            OPENVINO_THROW("Unsupported result event type");
+        }
 
         OPENVINO_ASSERT(op->evaluate(
                         output_gpu_tensors, input_gpu_tensors, meta),
                         "[GPU] Couldn't execute MLIROp ", op->get_friendly_name());
-
-        ev->set();
         return ev;
     };
     cldnn::generic_primitive::shape_infer_function shape_infer_f = [&op](

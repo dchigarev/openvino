@@ -62,6 +62,7 @@
 #include "gc/Transforms/Passes.h"
 
 #ifdef GC_USE_IMEX // GC_GPU requires IMEX support
+#include <CL/opencl.hpp>
 #include "gc/Utils/Error.h"
 #include "gc/ExecutionEngine/GPURuntime/GpuOclRuntime.h"
 #include "openvino/runtime/intel_gpu/remote_properties.hpp"
@@ -338,7 +339,9 @@ MLIREvaluateGcGPU::MLIREvaluateGcGPU(OwningOpRef<mlir::ModuleOp> _module, std::s
     OPENVINO_MLIR_DEBUG_PRINT(
         "-----------------------------------------\n");
 
-    gc::gpu::OclModuleBuilder builder(std::move(_module));
+    gc::gpu::OclModuleBuilderOpts opts;
+    OPENVINO_MLIR_DEBUG(opts.printIr = true);
+    gc::gpu::OclModuleBuilder builder(std::move(_module), opts);
 
     auto it = loweringContext->find(ov::intel_gpu::ocl_context.name());
     if (it == loweringContext->end()) {
@@ -348,15 +351,16 @@ MLIREvaluateGcGPU::MLIREvaluateGcGPU(OwningOpRef<mlir::ModuleOp> _module, std::s
     // QUESTION: may we pass context as void* directly to 'builder.build()' and make it responsible
     // for extracting the device?
     auto context = reinterpret_cast<cl_context>(it->second.as<ov::intel_gpu::gpu_handle_param>());
-    module = gcGetOrReport(builder.build(extract_device_from_context(context), context));
-
-    // gc::gpu::OclModule::dump is not implemented yet
-    // OPENVINO_MLIR_DEBUG_PRINT(
-    //     "[ DEBUG ] Target LLVM:\n"
-    //     "-----------------------------------------\n");
-    // OPENVINO_MLIR_DEBUG(module->dump());
-    // OPENVINO_MLIR_DEBUG_PRINT(
-    //     "-----------------------------------------\n");
+    OPENVINO_MLIR_DEBUG_PRINT(
+        "[ DEBUG ] Target LLVM:\n"
+        "-----------------------------------------\n");
+    if (auto mod = builder.build(extract_device_from_context(context), context)) {
+        module = *mod;
+    } else {
+        OPENVINO_THROW("Failed to build gc::gpuOclModule module");
+    }
+    OPENVINO_MLIR_DEBUG_PRINT(
+        "-----------------------------------------\n");
 };
 
 bool MLIREvaluateGcGPU::invoke(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) {
@@ -373,8 +377,7 @@ bool MLIREvaluateGcGPU::invoke(std::vector<void*>& args, const ov::EvaluationCon
         exec.arg(args[i], arg_types[i]);
     }
     exec(ctx);
-    // Should we 'wait()' here?
-    // ctx.finish();
+    maybe_set_result_event(evaluationContext, ctx);
     return true;
 }
 
@@ -397,9 +400,20 @@ bool MLIREvaluateGcGPU::invoke_packed(std::vector<void*>& args, const ov::Evalua
         );
     }
     exec(ctx);
-    // Should we 'wait()' here?
-    // ctx.finish();
+    maybe_set_result_event(evaluationContext, ctx);
     return true;
+}
+
+void MLIREvaluateGcGPU::maybe_set_result_event(const ov::EvaluationContext& evaluationContext, gc::gpu::OclContext& ctx) {
+    // case with in-order queue where we don't need to return an event
+    if (ctx.lastEvent == nullptr)
+        return;
+    auto it = evaluationContext.find(ov::intel_gpu::result_event.name());
+    if (it == evaluationContext.end()) {
+        OPENVINO_THROW("No result_event provided for OpenCL execution");
+    }
+    cl::Event* ev = reinterpret_cast<cl::Event*>(it->second.as<ov::intel_gpu::gpu_handle_param>());
+    *ev = ctx.lastEvent;
 }
 
 gc::gpu::OclContext MLIREvaluateGcGPU::build_ocl_context(const ov::EvaluationContext& evaluationContext) {
@@ -418,7 +432,8 @@ gc::gpu::OclContext MLIREvaluateGcGPU::build_ocl_context(const ov::EvaluationCon
         waitListLen = waitList.size();
     }
 
-    return gc::gpu::OclContext(module->runtime, queue, waitListLen, reinterpret_cast<cl_event*>(waitList.data()));
+    return gc::gpu::OclContext(module->runtime, queue, /*preserveOrder=*/waitListLen > 0,
+                               waitListLen, reinterpret_cast<cl_event*>(waitList.data()));
 }
 
 #endif // GC_USE_IMEX
