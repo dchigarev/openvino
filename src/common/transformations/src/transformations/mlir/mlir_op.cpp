@@ -363,7 +363,7 @@ MLIREvaluateGcGPU::MLIREvaluateGcGPU(OwningOpRef<mlir::ModuleOp> _module, std::s
         "-----------------------------------------\n");
 };
 
-bool MLIREvaluateGcGPU::invoke(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) {
+bool MLIREvaluateGcGPU::invoke(const ov::TensorVector& inputs, ov::TensorVector& outputs, const ov::EvaluationContext& evaluationContext) {
     gc::gpu::OclContext ctx = build_ocl_context(evaluationContext);
     gc::gpu::StaticExecutor exec(module);
 
@@ -372,9 +372,13 @@ bool MLIREvaluateGcGPU::invoke(std::vector<void*>& args, const ov::EvaluationCon
         OPENVINO_THROW("No is_kernel_arg_usm provided for OpenCL execution");
     }
     std::vector<bool> arg_types = it->second.as<std::vector<bool>>();
+    size_t module_arg_i = 0;
 
-    for (size_t i = 0; i < args.size(); ++i) {
-        exec.arg(args[i], arg_types[i]);
+    for (size_t i = 0; i < inputs.size(); ++i, ++module_arg_i) {
+        exec.arg(inputs[i].data(), arg_types[i]);
+    }
+    for (size_t i = 0; i < outputs.size(); ++i, ++module_arg_i) {
+        exec.arg(outputs[i].data(), arg_types[module_arg_i]);
     }
     exec(ctx);
     maybe_set_result_event(evaluationContext, ctx);
@@ -504,15 +508,7 @@ NodePtr MLIROp::clone_with_new_inputs(const ov::OutputVector& new_args) const {
 
 bool MLIROp::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inputs, const ov::EvaluationContext& evaluationContext) const {
     if (!engine->requires_packed_args()) {
-        std::vector<void*> args;
-        args.reserve(inputs.size() + outputs.size());
-        for (size_t i = 0; i < inputs.size(); ++i) {
-            args.push_back(inputs[i].data());
-        }
-        for (size_t i = 0; i < outputs.size(); ++i) {
-            args.push_back(outputs[i].data());
-        }
-        return engine->invoke(args, evaluationContext);
+        return engine->invoke(inputs, outputs, evaluationContext);
     }
 
     std::vector<MemRefDescriptor> memref_args;

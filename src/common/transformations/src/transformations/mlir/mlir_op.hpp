@@ -44,7 +44,8 @@ public:
                                                     std::shared_ptr<ov::EvaluationContext> ex_context);
 
     virtual bool requires_packed_args() const = 0;
-    virtual bool invoke(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) = 0;
+    // ::invoke() doesn't require any args preprocessing so we can pass tensors as is
+    virtual bool invoke(const ov::TensorVector& inputs, ov::TensorVector& outputs, const ov::EvaluationContext& evaluationContext) = 0;
     virtual bool invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) = 0;
     virtual ~MLIREvaluateBase() = default;
 };
@@ -58,7 +59,7 @@ public:
     MLIREvaluateGcGPU(OwningOpRef<ModuleOp> _module, std::shared_ptr<ov::EvaluationContext> loweringContext);
 
     bool requires_packed_args() const override { return !module->isStatic; }
-    bool invoke(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) override;
+    bool invoke(const ov::TensorVector& inputs, ov::TensorVector& outputs, const ov::EvaluationContext& evaluationContext) override;
     bool invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) override;
 
 private:
@@ -76,7 +77,7 @@ public:
 
     MLIREvaluate(OwningOpRef<ModuleOp> _module, MlirMode mode);
     bool requires_packed_args() const override { return true; }
-    bool invoke(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) override { return false; };
+    bool invoke(const ov::TensorVector& inputs, ov::TensorVector& outputs, const ov::EvaluationContext& evaluationContext) override { return false; };
     bool invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) override;
 };
 
