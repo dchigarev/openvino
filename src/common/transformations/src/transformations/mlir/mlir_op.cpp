@@ -66,7 +66,6 @@
 #include "gc/Utils/Error.h"
 #include "gc/ExecutionEngine/GPURuntime/GpuOclRuntime.h"
 #include "openvino/runtime/intel_gpu/remote_properties.hpp"
-#include "openvino/runtime/intel_gpu/properties.hpp"
 #endif
 #endif
 
@@ -367,18 +366,17 @@ bool MLIREvaluateGcGPU::invoke(const ov::TensorVector& inputs, ov::TensorVector&
     gc::gpu::OclContext ctx = build_ocl_context(evaluationContext);
     gc::gpu::StaticExecutor exec(module);
 
-    auto it = evaluationContext.find(ov::intel_gpu::memory_type::is_kernel_arg_usm.name());
+    auto it = evaluationContext.find(ov::intel_gpu::mlir_meta::is_kernel_arg_usm.name());
     if (it == evaluationContext.end()) {
         OPENVINO_THROW("No is_kernel_arg_usm provided for OpenCL execution");
     }
     std::vector<bool> arg_types = it->second.as<std::vector<bool>>();
-    size_t module_arg_i = 0;
 
-    for (size_t i = 0; i < inputs.size(); ++i, ++module_arg_i) {
+    for (size_t i = 0; i < inputs.size(); ++i) {
         exec.arg(inputs[i].data(), arg_types[i]);
     }
-    for (size_t i = 0; i < outputs.size(); ++i, ++module_arg_i) {
-        exec.arg(outputs[i].data(), arg_types[module_arg_i]);
+    for (size_t i = 0, j = inputs.size(); i < outputs.size(); ++i, ++j) {
+        exec.arg(outputs[i].data(), arg_types[j]);
     }
     exec(ctx);
     maybe_set_result_event(evaluationContext, ctx);
@@ -389,7 +387,7 @@ bool MLIREvaluateGcGPU::invoke_packed(std::vector<void*>& args, const ov::Evalua
     gc::gpu::OclContext ctx = build_ocl_context(evaluationContext);
     gc::gpu::DynamicExecutor exec(module);
 
-    auto it = evaluationContext.find(ov::intel_gpu::memory_type::is_kernel_arg_usm.name());
+    auto it = evaluationContext.find(ov::intel_gpu::mlir_meta::is_kernel_arg_usm.name());
     if (it == evaluationContext.end()) {
         OPENVINO_THROW("No is_kernel_arg_usm provided for OpenCL execution");
     }
@@ -412,7 +410,7 @@ void MLIREvaluateGcGPU::maybe_set_result_event(const ov::EvaluationContext& eval
     // case with in-order queue where we don't need to return an event
     if (ctx.lastEvent == nullptr)
         return;
-    auto it = evaluationContext.find(ov::intel_gpu::result_event.name());
+    auto it = evaluationContext.find(ov::intel_gpu::mlir_meta::result_event.name());
     if (it == evaluationContext.end()) {
         OPENVINO_THROW("No result_event provided for OpenCL execution");
     }
@@ -430,7 +428,7 @@ gc::gpu::OclContext MLIREvaluateGcGPU::build_ocl_context(const ov::EvaluationCon
     uint32_t waitListLen = 0;
     std::vector<ov::intel_gpu::gpu_handle_param> waitList;
 
-    it = evaluationContext.find(ov::intel_gpu::wait_list.name());
+    it = evaluationContext.find(ov::intel_gpu::mlir_meta::wait_list.name());
     if (it != evaluationContext.end()) {
         waitList = it->second.as<std::vector<ov::intel_gpu::gpu_handle_param>>();
         waitListLen = waitList.size();

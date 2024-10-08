@@ -12,7 +12,6 @@
 #include "runtime/ocl/ocl_base_event.hpp"
 
 #include "openvino/runtime/intel_gpu/remote_properties.hpp"
-#include "openvino/runtime/intel_gpu/properties.hpp"
 
 namespace ov {
 namespace op {
@@ -86,7 +85,7 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
             cl_command_queue queue = ocl_stream->get_cl_queue().get();
             meta.insert(ov::intel_gpu::ocl_queue(queue));
         }
-        meta.insert(ov::intel_gpu::memory_type::is_kernel_arg_usm(is_usm_ptr));
+        meta.insert(ov::intel_gpu::mlir_meta::is_kernel_arg_usm(is_usm_ptr));
 
         std::vector<ov::intel_gpu::gpu_handle_param> events_list;
         if (stream.get_queue_type() == cldnn::QueueTypes::out_of_order) {
@@ -101,11 +100,11 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
                 }
             }
         }
-        meta.insert(ov::intel_gpu::wait_list(events_list));
+        meta.insert(ov::intel_gpu::mlir_meta::wait_list(events_list));
 
         if (auto ocl_ev = dynamic_cast<cldnn::ocl::ocl_base_event*>(ev.get())) {
             cl::Event* cl_ev = &ocl_ev->get();
-            meta.insert(ov::intel_gpu::result_event(cl_ev));
+            meta.insert(ov::intel_gpu::mlir_meta::result_event(cl_ev));
         } else {
             OPENVINO_THROW("Unsupported result event type");
         }
