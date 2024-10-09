@@ -4,6 +4,8 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
     # versions, using find_package() first. If the package is not found, then using FetchContent.
     if (CMAKE_VERSION VERSION_LESS "3.24")
         find_package(GraphCompiler QUIET)
+    else ()
+        set(GC_FETCH_CONTENT_ARGS FIND_PACKAGE_ARGS NAMES GraphCompiler)
     endif ()
 
     if (NOT GraphCompiler_FOUND)
@@ -13,7 +15,7 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
                 GC
                 GIT_REPOSITORY https://github.com/intel/graph-compiler.git
                 GIT_TAG main
-                FIND_PACKAGE_ARGS NAMES GraphCompiler
+                ${GC_FETCH_CONTENT_ARGS}
         )
 
         set(GC_ENABLE_IMEX ${ENABLE_INTEL_GPU})
