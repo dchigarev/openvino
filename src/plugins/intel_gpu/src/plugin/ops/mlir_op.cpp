@@ -7,10 +7,8 @@
 #include "openvino/core/partial_shape.hpp"
 #include "intel_gpu/plugin/program_builder.hpp"
 #include "intel_gpu/primitives/generic_primitive.hpp"
-#include "ocl/ocl_memory.hpp"
-#include "runtime/ocl/ocl_stream.hpp"
-#include "runtime/ocl/ocl_base_event.hpp"
 
+#include "openvino/runtime/intel_gpu/ocl/ocl_wrapper.hpp"
 #include "openvino/runtime/intel_gpu/remote_properties.hpp"
 #include "openvino/runtime/internal_properties.hpp"
 
@@ -44,11 +42,12 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
         auto process_buffer = [&stream, &is_usm_ptr](cldnn::memory::ptr mem, ov::TensorVector& tensors) {
             switch (mem->get_allocation_type()) {
                 case cldnn::allocation_type::cl_mem: {
-                    auto gpu_buff = dynamic_cast<cldnn::ocl::gpu_buffer*>(mem.get());
-                    cl_mem cl_buff = gpu_buff->get_buffer().get();
-
-                    tensors.push_back(make_tensor(mem->get_layout(), static_cast<void*>(cl_buff)));
-                    is_usm_ptr.push_back(false);
+                    if (void* cl_buff = mem->get_handle()) {
+                        tensors.push_back(make_tensor(mem->get_layout(), cl_buff));
+                        is_usm_ptr.push_back(false);
+                    } else {
+                        OPENVINO_THROW("Memory handle is null for cl_mem");
+                    }
                     break;
                 }
                 case cldnn::allocation_type::usm_host:
@@ -82,9 +81,10 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
         }
 
         ov::EvaluationContext meta;
-        if (auto ocl_stream = dynamic_cast<cldnn::ocl::ocl_stream*>(&stream)) {
-            cl_command_queue queue = ocl_stream->get_cl_queue().get();
+        if (void* queue = stream.get_handle()) {
             meta.insert(ov::intel_gpu::ocl_queue(queue));
+        } else {
+            OPENVINO_THROW("Unsupported queue type");
         }
         meta.insert(ov::internal::mlir_meta::is_kernel_arg_usm(is_usm_ptr));
 
@@ -92,20 +92,24 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
         if (stream.get_queue_type() == cldnn::QueueTypes::out_of_order) {
             events_list.reserve(dependent_events.size() + 1);
             for (auto& ev : dependent_events) {
-                if (auto ocl_ev = dynamic_cast<cldnn::ocl::ocl_base_event*>(ev.get())) {
-                    events_list.push_back(ocl_ev->get().get());
+                // event::get_handle() returns a pointer to a c++ wrapper over cl_event,
+                // GPU runtime expects an event list of cl_event pointers, so extracting
+                // the cl_event pointer before adding an event to the list.
+                if (void* cl_ev = ev->get_handle()) {
+                    cl_ev = reinterpret_cast<cl::Event*>(ev->get_handle())->get();
+                    events_list.push_back(cl_ev);
                 } else {
-                    // TODO: maybe we should simply wait this event instead of throwing an error?
-                    // ev->wait();
                     OPENVINO_THROW("Unsupported event type");
                 }
             }
         }
         meta.insert(ov::internal::mlir_meta::wait_list(events_list));
 
-        if (auto ocl_ev = dynamic_cast<cldnn::ocl::ocl_base_event*>(ev.get())) {
-            cl::Event* cl_ev = &ocl_ev->get();
-            meta.insert(ov::internal::mlir_meta::result_event(cl_ev));
+        if (void* ocl_ev = ev->get_handle()) {
+            // We want to pass a c++ wrapper over cl_event to the mlir_op
+            // since we want to overwrite the underlying event with the result event.
+            // So passing cl::Event pointer as is.
+            meta.insert(ov::internal::mlir_meta::result_event(ocl_ev));
         } else {
             OPENVINO_THROW("Unsupported result event type");
         }

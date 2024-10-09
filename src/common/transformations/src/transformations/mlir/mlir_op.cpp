@@ -310,27 +310,6 @@ std::shared_ptr<MLIREvaluateBase> MLIREvaluateBase::create(OwningOpRef<ModuleOp>
 
 #ifdef GC_USE_IMEX // GC_GPU requires IMEX support
 
-cl_device_id extract_device_from_context(cl_context context) {
-    size_t devices_size;
-    cl_int err = clGetContextInfo(context, CL_CONTEXT_DEVICES, 0, NULL, &devices_size);
-    if (err != CL_SUCCESS) {
-        OPENVINO_THROW("Error getting context info: ", err);
-    }
-    if (devices_size / sizeof(cl_device_id) != 1) {
-        OPENVINO_THROW("Expected exactly one device in the context, got ", devices_size);
-    }
-
-    cl_device_id devices;
-    err = clGetContextInfo(context, CL_CONTEXT_DEVICES, devices_size, &devices, NULL);
-    if (err != CL_SUCCESS) {
-        OPENVINO_THROW("Error getting device IDs: ", err);
-    }
-
-    return devices;
-}
-
-
-
 MLIREvaluateGcGPU::MLIREvaluateGcGPU(OwningOpRef<mlir::ModuleOp> _module, std::shared_ptr<ov::EvaluationContext> loweringContext) {
     OPENVINO_MLIR_DEBUG_PRINT(
         "[ DEBUG ] Source MLIR:\n"
@@ -347,14 +326,18 @@ MLIREvaluateGcGPU::MLIREvaluateGcGPU(OwningOpRef<mlir::ModuleOp> _module, std::s
     if (it == loweringContext->end()) {
         OPENVINO_THROW("No cl_context provided for OpenCL execution");
     }
-    // QUESTION: are we sure that there's always only one device per context?
-    // QUESTION: may we pass context as void* directly to 'builder.build()' and make it responsible
-    // for extracting the device?
     auto context = reinterpret_cast<cl_context>(it->second.as<ov::intel_gpu::gpu_handle_param>());
+
+    it = loweringContext->find(ov::intel_gpu::va_device.name());
+    if (it == loweringContext->end()) {
+        OPENVINO_THROW("No va_device provided for OpenCL execution");
+    }
+    auto device = reinterpret_cast<cl_device_id>(it->second.as<ov::intel_gpu::gpu_handle_param>());
+
     OPENVINO_MLIR_DEBUG_PRINT(
         "[ DEBUG ] Target LLVM:\n"
         "-----------------------------------------\n");
-    if (auto mod = builder.build(extract_device_from_context(context), context)) {
+    if (auto mod = builder.build(device, context)) {
         module = *mod;
     } else {
         OPENVINO_THROW("Failed to build gc::gpuOclModule module");

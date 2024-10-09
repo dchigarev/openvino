@@ -48,6 +48,7 @@ enum class sync_methods {
 class ocl_stream : public stream {
 public:
     const ocl_queue_type& get_cl_queue() const { return _command_queue; }
+    void* get_handle() const override { return static_cast<void*>(get_cl_queue().get()); }
 
     explicit ocl_stream(const ocl_engine& engine, const ExecutionConfig& config);
     ocl_stream(const ocl_engine &engine, const ExecutionConfig& config, void *handle);

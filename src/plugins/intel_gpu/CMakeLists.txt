@@ -70,9 +70,7 @@ target_link_libraries(
 
 target_include_directories(${TARGET_NAME} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include/
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/
-        "${GRAPH_COMPILER_INCLUDES}"
-    )
+        "${GRAPH_COMPILER_INCLUDES}")
 
 ov_set_threading_interface_for(${TARGET_NAME})
 

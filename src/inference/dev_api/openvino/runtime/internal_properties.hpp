@@ -84,21 +84,25 @@ static constexpr Property<float, PropertyMutability::RW> query_model_ratio{"QUER
 namespace mlir_meta {
 
 /**
- * @brief This key identifies an event list to wait for a kernel execution.
- * @ingroup ov_runtime_ocl_gpu_cpp_api
+ * @brief This key identifies a list of cl_event to wait for a kernel execution.
+ * @ingroup ov_dev_api_plugin_mlir_meta_api
  */
 static constexpr Property<std::vector<void*>> wait_list{"EVENTS_WAIT_LIST"};
 
 /**
  * @brief This key identifies a pointer to a cl::Event that should be set with
- * the result cl_event of a kernel execution.
- * @ingroup ov_runtime_ocl_gpu_cpp_api
+ * the result cl_event of a kernel execution. Example:
+ * @code
+ *     cl_event result_event = launchModuleAndGetEvent();
+ *     cl::Event* ev = evaluationContext[ov::internal::mlir_meta::result_event.name()].as<cl::Event*>();
+ *     *ev = result_event; // cl::Event::operator=() will retain the event
+ * @ingroup ov_dev_api_plugin_mlir_meta_api
  */
 static constexpr Property<void*> result_event{"RESULT_EVENT"};
 
 /**
  * @brief This key identifies whether the kernel argument at [i] position is USM pointer
- * @ingroup ov_runtime_ocl_gpu_prop_cpp_api
+ * @ingroup ov_dev_api_plugin_mlir_meta_api
  */
 static constexpr Property<std::vector<bool>> is_kernel_arg_usm{"IS_KERNEL_ARG_USM"};
 

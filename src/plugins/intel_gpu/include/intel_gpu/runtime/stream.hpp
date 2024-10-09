@@ -42,6 +42,8 @@ public:
     virtual event::ptr create_base_event() = 0;
 
     QueueTypes get_queue_type() const { return queue_type; }
+    // Returns the handle to the underlying stream object (e.g. cl_command_queue for OpenCL)
+    virtual void* get_handle() const { return nullptr; }
 
     static QueueTypes detect_queue_type(engine_types engine_type, void* queue_handle);
 
