@@ -66,6 +66,7 @@
 #include "gc/Utils/Error.h"
 #include "gc/ExecutionEngine/GPURuntime/GpuOclRuntime.h"
 #include "openvino/runtime/intel_gpu/remote_properties.hpp"
+#include "openvino/runtime/internal_properties.hpp"
 #endif
 #endif
 
@@ -232,7 +233,7 @@ std::unique_ptr<llvm::Module> lowerToLLVMIR(Operation* module, llvm::LLVMContext
 struct MemRefDescriptor {
     MemRefDescriptor() = default;
 
-    MemRefDescriptor    (ov::Tensor tensor, ov::Shape module_input_shape)
+    MemRefDescriptor    (ov::Tensor tensor, const ov::Shape& module_input_shape)
         : allocated(tensor.data()),
           aligned(tensor.data()),
           offset(0),
@@ -366,7 +367,7 @@ bool MLIREvaluateGcGPU::invoke(const ov::TensorVector& inputs, ov::TensorVector&
     gc::gpu::OclContext ctx = build_ocl_context(evaluationContext);
     gc::gpu::StaticExecutor exec(module);
 
-    auto it = evaluationContext.find(ov::intel_gpu::mlir_meta::is_kernel_arg_usm.name());
+    auto it = evaluationContext.find(ov::internal::mlir_meta::is_kernel_arg_usm.name());
     if (it == evaluationContext.end()) {
         OPENVINO_THROW("No is_kernel_arg_usm provided for OpenCL execution");
     }
@@ -387,7 +388,7 @@ bool MLIREvaluateGcGPU::invoke_packed(std::vector<void*>& args, const ov::Evalua
     gc::gpu::OclContext ctx = build_ocl_context(evaluationContext);
     gc::gpu::DynamicExecutor exec(module);
 
-    auto it = evaluationContext.find(ov::intel_gpu::mlir_meta::is_kernel_arg_usm.name());
+    auto it = evaluationContext.find(ov::internal::mlir_meta::is_kernel_arg_usm.name());
     if (it == evaluationContext.end()) {
         OPENVINO_THROW("No is_kernel_arg_usm provided for OpenCL execution");
     }
@@ -410,11 +411,11 @@ void MLIREvaluateGcGPU::maybe_set_result_event(const ov::EvaluationContext& eval
     // case with in-order queue where we don't need to return an event
     if (ctx.lastEvent == nullptr)
         return;
-    auto it = evaluationContext.find(ov::intel_gpu::mlir_meta::result_event.name());
+    auto it = evaluationContext.find(ov::internal::mlir_meta::result_event.name());
     if (it == evaluationContext.end()) {
         OPENVINO_THROW("No result_event provided for OpenCL execution");
     }
-    cl::Event* ev = reinterpret_cast<cl::Event*>(it->second.as<ov::intel_gpu::gpu_handle_param>());
+    cl::Event* ev = reinterpret_cast<cl::Event*>(it->second.as<void*>());
     *ev = ctx.lastEvent;
 }
 
@@ -423,14 +424,14 @@ gc::gpu::OclContext MLIREvaluateGcGPU::build_ocl_context(const ov::EvaluationCon
     if (it == evaluationContext.end()) {
         OPENVINO_THROW("No queue provided for OpenCL execution");
     }
-    cl_command_queue queue = reinterpret_cast<cl_command_queue>(it->second.as<ov::intel_gpu::gpu_handle_param>());
+    cl_command_queue queue = reinterpret_cast<cl_command_queue>(it->second.as<void*>());
 
     uint32_t waitListLen = 0;
-    std::vector<ov::intel_gpu::gpu_handle_param> waitList;
+    std::vector<void*> waitList;
 
-    it = evaluationContext.find(ov::intel_gpu::mlir_meta::wait_list.name());
+    it = evaluationContext.find(ov::internal::mlir_meta::wait_list.name());
     if (it != evaluationContext.end()) {
-        waitList = it->second.as<std::vector<ov::intel_gpu::gpu_handle_param>>();
+        waitList = it->second.as<std::vector<void*>>();
         waitListLen = waitList.size();
     }
 
@@ -511,7 +512,7 @@ bool MLIROp::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inputs,
 
     std::vector<MemRefDescriptor> memref_args;
     for (size_t i = 0; i < inputs.size(); ++i) {
-        auto initial_shape = get_input_shape(i);
+        auto& initial_shape = get_input_shape(i);
         memref_args.push_back(MemRefDescriptor(inputs[i], initial_shape));
     }
     for (size_t i = 0; i < outputs.size(); ++i) {
