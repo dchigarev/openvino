@@ -36,7 +36,7 @@ if (NOT DEFINED GRAPH_COMPILER_LIBS)
             GcCpuRuntime
     )
 
-    if (GC_ENABLE_IMEX)
+    if (${ENABLE_INTEL_GPU})
         list(APPEND GRAPH_COMPILER_LIBS GcGpuOclRuntime)
     endif()
 
