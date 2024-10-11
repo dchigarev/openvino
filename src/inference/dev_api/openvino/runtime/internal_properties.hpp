@@ -90,15 +90,15 @@ namespace mlir_meta {
 static constexpr Property<std::vector<void*>> wait_list{"EVENTS_WAIT_LIST"};
 
 /**
- * @brief This key identifies a pointer to a cl::Event that should be set with
+ * @brief This key identifies a pointer to a cl_enevt that should be set with
  * the result cl_event of a kernel execution. Example:
  * @code
  *     cl_event result_event = launchModuleAndGetEvent();
- *     cl::Event* ev = evaluationContext[ov::internal::mlir_meta::result_event.name()].as<cl::Event*>();
- *     *ev = result_event; // cl::Event::operator=() will retain the event
+ *     cl_event* ev = evaluationContext[ov::internal::mlir_meta::result_event.name()].as<void**>();
+ *     *ev = result_event;
  * @ingroup ov_dev_api_plugin_mlir_meta_api
  */
-static constexpr Property<void*> result_event{"RESULT_EVENT"};
+static constexpr Property<void**> result_event{"RESULT_EVENT"};
 
 /**
  * @brief This key identifies whether the kernel argument at [i] position is USM pointer

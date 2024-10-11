@@ -39,7 +39,7 @@ public:
     virtual event::ptr group_events(std::vector<event::ptr> const& deps) = 0;
     virtual void wait_for_events(const std::vector<event::ptr>& events) = 0;
     virtual event::ptr create_user_event(bool set) = 0;
-    virtual event::ptr create_base_event() = 0;
+    virtual event::ptr create_base_event(void* handle = nullptr) = 0;
 
     QueueTypes get_queue_type() const { return queue_type; }
     // Returns the handle to the underlying stream object (e.g. cl_command_queue for OpenCL)

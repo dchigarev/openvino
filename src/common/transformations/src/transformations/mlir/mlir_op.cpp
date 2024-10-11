@@ -62,7 +62,6 @@
 #include "gc/Transforms/Passes.h"
 
 #ifdef GC_USE_IMEX // GC_GPU requires IMEX support
-#include <CL/opencl.hpp>
 #include "gc/Utils/Error.h"
 #include "gc/ExecutionEngine/GPURuntime/GpuOclRuntime.h"
 #include "openvino/runtime/intel_gpu/remote_properties.hpp"
@@ -398,7 +397,7 @@ void MLIREvaluateGcGPU::maybe_set_result_event(const ov::EvaluationContext& eval
     if (it == evaluationContext.end()) {
         OPENVINO_THROW("No result_event provided for OpenCL execution");
     }
-    cl::Event* ev = reinterpret_cast<cl::Event*>(it->second.as<void*>());
+    cl_event* ev = reinterpret_cast<cl_event*>(it->second.as<void**>());
     *ev = ctx.lastEvent;
 }
 

@@ -78,7 +78,7 @@ public:
     void wait_for_events(const std::vector<event::ptr>& events) override;
     void enqueue_barrier() override;
     event::ptr create_user_event(bool set) override;
-    event::ptr create_base_event() override;
+    event::ptr create_base_event(void* handle = nullptr) override;
 
     const cl::UsmHelper& get_usm_helper() const { return _engine.get_usm_helper(); }
 
