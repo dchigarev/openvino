@@ -410,14 +410,16 @@ gc::gpu::OclContext MLIREvaluateGcGPU::build_ocl_context(const ov::EvaluationCon
 
     uint32_t waitListLen = 0;
     std::vector<void*> waitList;
+    bool foundWaitList = false;
 
     it = evaluationContext.find(ov::internal::mlir_meta::wait_list.name());
     if (it != evaluationContext.end()) {
         waitList = it->second.as<std::vector<void*>>();
         waitListLen = waitList.size();
+        foundWaitList = true;
     }
 
-    return gc::gpu::OclContext(module->runtime, queue, /*preserveOrder=*/waitListLen > 0,
+    return gc::gpu::OclContext(module->runtime, queue, /*createEvents=*/foundWaitList,
                                waitListLen, reinterpret_cast<cl_event*>(waitList.data()));
 }
 

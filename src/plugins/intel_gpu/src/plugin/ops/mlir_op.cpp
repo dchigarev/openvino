@@ -96,10 +96,10 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
                     OPENVINO_THROW("Unsupported event type");
                 }
             }
+            meta.insert(ov::internal::mlir_meta::wait_list(events_list));
             // 'cl_event' is a pointer itself, that's why we pass pointer to a pointer here.
             meta.insert(ov::internal::mlir_meta::result_event(reinterpret_cast<void**>(result_event)));
         }
-        meta.insert(ov::internal::mlir_meta::wait_list(events_list));
 
         OPENVINO_ASSERT(op->evaluate(
                         output_gpu_tensors, input_gpu_tensors, meta),
