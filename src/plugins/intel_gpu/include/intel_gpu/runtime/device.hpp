@@ -22,7 +22,6 @@ public:
     virtual memory_capabilities get_mem_caps() const = 0;
 
     virtual bool is_same(const device::ptr other) = 0;
-    virtual void* get_handle() { return nullptr; }
 
     float get_gops(cldnn::data_types dt) const;
 

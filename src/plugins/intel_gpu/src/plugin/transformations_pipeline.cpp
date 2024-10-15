@@ -851,11 +851,9 @@ void TransformationsPipeline::apply(std::shared_ptr<ov::Model> func) {
         auto loweringContext = std::make_shared<ov::EvaluationContext>();
         auto it = m_context->get_property().find(ov::intel_gpu::ocl_context.name());
         if (it != m_context->get_property().end()) {
+            // We assume here that there's only one device per context and that an
+            // actual device will be extracted later by the 'mlir_op'.
             loweringContext->insert(ov::intel_gpu::ocl_context(it->second.as<ov::intel_gpu::gpu_handle_param>()));
-        }
-        void* ocl_device = m_context->get_engine().get_device()->get_handle();
-        if (ocl_device != nullptr) {
-            loweringContext->insert(ov::intel_gpu::va_device(ocl_device));
         }
         ov::pass::transformMLIR(func, loweringContext);
 

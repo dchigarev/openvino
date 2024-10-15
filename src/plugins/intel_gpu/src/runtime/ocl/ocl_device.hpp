@@ -27,7 +27,6 @@ public:
     cl::Device& get_device() { return _device; }
     const cl::Context& get_context() const { return _context; }
     const cl::Platform& get_platform() const { return _platform; }
-    void* get_handle() override { return static_cast<void*>(get_device().get());}
 
     bool is_same(const device::ptr other) override;
 
