@@ -10,6 +10,9 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <chrono>
+#include <iostream>
+#include <utility>
 
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
@@ -319,7 +322,7 @@ std::shared_ptr<MLIREvaluateBase> MLIREvaluateBase::create(OwningOpRef<ModuleOp>
 
 #ifdef GC_USE_GPU
 
-cl_device_id extract_device_from_context(cl_context context) {
+static cl_device_id extract_device_from_context(cl_context context) {
     size_t devices_size;
     cl_int err = clGetContextInfo(context, CL_CONTEXT_DEVICES, 0, NULL, &devices_size);
     if (err != CL_SUCCESS) {
@@ -339,6 +342,7 @@ cl_device_id extract_device_from_context(cl_context context) {
 }
 
 MLIREvaluateGcGPU::MLIREvaluateGcGPU(OwningOpRef<mlir::ModuleOp> _module, std::shared_ptr<ov::EvaluationContext> loweringContext) {
+    auto start_time = std::chrono::high_resolution_clock::now();
     OPENVINO_MLIR_DEBUG_PRINT(
         "[ DEBUG ] Source MLIR:\n"
         "-----------------------------------------\n");
@@ -368,9 +372,13 @@ MLIREvaluateGcGPU::MLIREvaluateGcGPU(OwningOpRef<mlir::ModuleOp> _module, std::s
     }
     OPENVINO_MLIR_DEBUG_PRINT(
         "-----------------------------------------\n");
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    std::cout << "[MLIR_TIMING] MLIREvaluateGcGPU::constructor: " << duration.count() << " us" << std::endl;
 };
 
 bool MLIREvaluateGcGPU::invoke(const ov::TensorVector& inputs, ov::TensorVector& outputs, const ov::EvaluationContext& evaluationContext) {
+    auto start_time = std::chrono::high_resolution_clock::now();
     gc::gpu::OclContext ctx = build_ocl_context(evaluationContext);
     gc::gpu::StaticExecutor exec(module);
 
@@ -387,12 +395,21 @@ bool MLIREvaluateGcGPU::invoke(const ov::TensorVector& inputs, ov::TensorVector&
         exec.arg(outputs[i].data(), arg_types[j]);
     }
 
+    auto exec_start = std::chrono::high_resolution_clock::now();
     exec(ctx);
+    auto exec_end = std::chrono::high_resolution_clock::now();
+    auto exec_duration = std::chrono::duration_cast<std::chrono::microseconds>(exec_end - exec_start);
+    std::cout << "[MLIR_TIMING]   exec(ctx) in invoke: " << exec_duration.count() << " us" << std::endl;
+    
     maybe_set_result_event(evaluationContext, ctx);
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    std::cout << "[MLIR_TIMING] MLIREvaluateGcGPU::invoke: " << duration.count() << " us" << std::endl;
     return true;
 }
 
 bool MLIREvaluateGcGPU::invoke_packed(std::vector<void*>& args, const ov::EvaluationContext& evaluationContext) {
+    auto start_time = std::chrono::high_resolution_clock::now();
     gc::gpu::OclContext ctx = build_ocl_context(evaluationContext);
     gc::gpu::DynamicExecutor exec(module);
 
@@ -410,12 +427,21 @@ bool MLIREvaluateGcGPU::invoke_packed(std::vector<void*>& args, const ov::Evalua
             /*isUsm=*/argTypes[i]
         );
     }
+    auto exec_start = std::chrono::high_resolution_clock::now();
     exec(ctx);
+    auto exec_end = std::chrono::high_resolution_clock::now();
+    auto exec_duration = std::chrono::duration_cast<std::chrono::microseconds>(exec_end - exec_start);
+    std::cout << "[MLIR_TIMING]   exec(ctx) in invoke_packed: " << exec_duration.count() << " us" << std::endl;
+    
     maybe_set_result_event(evaluationContext, ctx);
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    std::cout << "[MLIR_TIMING] MLIREvaluateGcGPU::invoke_packed: " << duration.count() << " us" << std::endl;
     return true;
 }
 
 void MLIREvaluateGcGPU::maybe_set_result_event(const ov::EvaluationContext& evaluationContext, gc::gpu::OclContext& ctx) {
+    auto start_time = std::chrono::high_resolution_clock::now();
     // case with in-order queue where we don't need to return an event
     if (ctx.lastEvent == nullptr)
         return;
@@ -423,11 +449,19 @@ void MLIREvaluateGcGPU::maybe_set_result_event(const ov::EvaluationContext& eval
     if (it == evaluationContext.end()) {
         OPENVINO_THROW("No result_event provided for OpenCL execution");
     }
+    cl_int err = clRetainEvent(ctx.lastEvent);
+    if (err != CL_SUCCESS) {
+        OPENVINO_THROW("Failed to retain OpenCL result event, error code: ", err);
+    }
     cl_event* ev = reinterpret_cast<cl_event*>(it->second.as<void**>());
     *ev = ctx.lastEvent;
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    std::cout << "[MLIR_TIMING] MLIREvaluateGcGPU::maybe_set_result_event: " << duration.count() << " us" << std::endl;
 }
 
 gc::gpu::OclContext MLIREvaluateGcGPU::build_ocl_context(const ov::EvaluationContext& evaluationContext) {
+    auto start_time = std::chrono::high_resolution_clock::now();
     auto it = evaluationContext.find(ov::intel_gpu::ocl_queue.name());
     if (it == evaluationContext.end()) {
         OPENVINO_THROW("No queue provided for OpenCL execution");
@@ -436,16 +470,21 @@ gc::gpu::OclContext MLIREvaluateGcGPU::build_ocl_context(const ov::EvaluationCon
 
     uint32_t waitListLen = 0;
     std::vector<void*> waitList;
-    bool foundWaitList = false;
+    const bool needResultEvent = evaluationContext.find(ov::internal::mlir_meta::result_event.name()) != evaluationContext.end();
+    bool createEvents = needResultEvent;
 
     it = evaluationContext.find(ov::internal::mlir_meta::wait_list.name());
     if (it != evaluationContext.end()) {
         waitList = it->second.as<std::vector<void*>>();
         waitListLen = waitList.size();
-        foundWaitList = true;
+        createEvents = true;
     }
 
-    return gc::gpu::OclContext(module->runtime, queue, /*createEvents=*/foundWaitList,
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    std::cout << "[MLIR_TIMING] MLIREvaluateGcGPU::build_ocl_context: " << duration.count() << " us" << std::endl;
+    
+    return gc::gpu::OclContext(module->runtime, queue, /*createEvents=*/createEvents,
                                waitListLen, reinterpret_cast<cl_event*>(waitList.data()));
 }
 

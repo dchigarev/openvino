@@ -156,7 +156,12 @@ class BenchmarkLayerTest : public BaseLayerTest {
                         return profile.node_type == node_type_name;
                     });
                 if (found_profile == profiling_info.end()) {
-                    OPENVINO_THROW("Cannot find operator by node type: ", node_type_name);
+                    std::stringstream available_types;
+                    available_types << "Available node types: ";
+                    for (const auto& p : profiling_info) {
+                        available_types << p.node_type << ", ";
+                    }
+                    OPENVINO_THROW("Cannot find operator by node type: ", node_type_name, "\n", available_types.str());
                 }
                 time += found_profile->real_time.count();
             }

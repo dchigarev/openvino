@@ -24,7 +24,8 @@ namespace ov {
 namespace intel_gpu {
 
 void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir::MLIRSubgraph>& op) {
-    cldnn::generic_primitive::execute_function execute_f = [op](
+    const bool enable_profiling = p.get_config().get_enable_profiling();
+    cldnn::generic_primitive::execute_function execute_f = [op, enable_profiling](
             const std::vector<cldnn::event::ptr>& dependent_events,
             cldnn::stream& stream,
             const std::vector<cldnn::memory::ptr>& inputs,
@@ -85,8 +86,9 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
         }
         meta.insert(ov::internal::mlir_meta::is_kernel_arg_usm(is_usm_ptr));
 
+        const bool need_result_event = enable_profiling || stream.get_queue_type() == cldnn::QueueTypes::out_of_order;
         std::vector<void*> events_list;
-        cl_event* result_event = nullptr;
+        cl_event result_event = nullptr;
         if (stream.get_queue_type() == cldnn::QueueTypes::out_of_order) {
             events_list.reserve(dependent_events.size() + 1);
             for (auto& ev : dependent_events) {
@@ -97,8 +99,11 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
                 }
             }
             meta.insert(ov::internal::mlir_meta::wait_list(events_list));
+        }
+
+        if (need_result_event) {
             // 'cl_event' is a pointer itself, that's why we pass pointer to a pointer here.
-            meta.insert(ov::internal::mlir_meta::result_event(reinterpret_cast<void**>(result_event)));
+            meta.insert(ov::internal::mlir_meta::result_event(reinterpret_cast<void**>(&result_event)));
         }
 
         OPENVINO_ASSERT(op->evaluate(
@@ -106,9 +111,9 @@ void CreateMLIRSubgraphOp(ProgramBuilder& p, const std::shared_ptr<ov::op::mlir:
                         "[GPU] Couldn't execute MLIROp ", op->get_friendly_name());
 
         cldnn::event::ptr ev;
-        if (stream.get_queue_type() == cldnn::QueueTypes::out_of_order) {
+        if (need_result_event) {
             OPENVINO_ASSERT(result_event != nullptr, "Result cl_event is not set");
-            ev = stream.create_base_event(*result_event);
+            ev = stream.create_base_event(result_event);
         } else {
             ev = stream.create_user_event(true);
         }

@@ -724,7 +724,7 @@ void TransformationsPipeline::apply(std::shared_ptr<ov::Model> func) {
 
         pass_config->set_callback<ov::pass::ScaledDotProductAttentionDecomposition>([&](const std::shared_ptr<const ov::Node> node){
             if (!config.get_enable_sdpa_optimization())
-                return true;
+                return false;
 
             auto sdpa = ov::as_type_ptr<const ov::op::v13::ScaledDotProductAttention>(node);
             // TODO: sdpa_opt is not supporting sink_input for 1st token case yet
@@ -1595,7 +1595,9 @@ void TransformationsPipeline::apply(std::shared_ptr<ov::Model> func) {
             // actual device will be extracted later by the 'mlir_op'.
             loweringContext->insert(ov::intel_gpu::ocl_context(it->second.as<ov::intel_gpu::gpu_handle_param>()));
         }
-        ov::pass::transformMLIR(func, loweringContext);
+        if (ov::pass::is_mlir_transform_enabled()) {
+            ov::pass::transformMLIR(func, loweringContext);
+        }
 
         // This is supposed to be the last pass to ensure that we don't have name collisions until
         // GPU plugin stops using friendly names for program creation
