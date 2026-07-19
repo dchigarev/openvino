@@ -147,6 +147,8 @@ if(ENABLE_GRAPH_COMPILER)
     target_link_libraries(${mlir_lib} PRIVATE openvino::runtime openvino_intel_gpu_graph GraphCompiler)
     target_include_directories(${mlir_lib} PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include/
+            # FIXME: remove when ov::MLIROp definition is moved to a common plugin header
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/plugin
             ${OpenVINO_SOURCE_DIR}/src/common/transformations/include
             ${OV_GPU_MLIR_DIR})
 
@@ -174,7 +176,17 @@ target_include_directories(${TARGET_NAME} PRIVATE
 if(ENABLE_GRAPH_COMPILER)
     target_link_libraries(${TARGET_NAME} PRIVATE GraphCompiler)
     target_compile_definitions(${TARGET_NAME} PUBLIC GRAPH_COMPILER)
+    # openvino_intel_gpu_graph (cldnn) also needs the flag so its registry.hpp /
+    # register.{cpp,hpp} pull in the mlir_primitive symbols.
+    target_compile_definitions(openvino_intel_gpu_graph PUBLIC GRAPH_COMPILER)
+    # openvino_intel_gpu_common_obj hosts mlir_primitive_impl (and thus emits
+    # its vtable). It is an OBJECT library that is *aggregated* into graph — it
+    # does not link against graph, so PUBLIC defs above don't propagate to it.
+    # Set the flag directly.
+    target_compile_definitions(openvino_intel_gpu_common_obj PRIVATE GRAPH_COMPILER)
     target_include_directories(${TARGET_NAME} PRIVATE
+            # FIXME: remove when ov::MLIROp definition is moved to a common plugin header
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/plugin
             ${OpenVINO_SOURCE_DIR}/src/common/transformations/include
             ${OV_GPU_MLIR_DIR})
 endif()

@@ -174,7 +174,7 @@ static constexpr Property<CacheQuantMode, PropertyMutability::RW> key_cache_quan
 
 static constexpr Property<CacheQuantMode, PropertyMutability::RW> value_cache_quant_mode{"VALUE_CACHE_QUANT_MODE"};
 
-/* 
+/*
 * @brief Namespace for properties related to MLIR operations within the GPU plugin.
  * These properties are used as evaluation context parameters for MLIR operations,
  * assisting in managing events, result tracking, and kernel argument types.
