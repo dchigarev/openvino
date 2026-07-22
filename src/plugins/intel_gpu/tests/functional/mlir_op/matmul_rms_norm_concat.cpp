@@ -18,7 +18,7 @@
 #include "shared_test_classes/base/benchmark.hpp"
 #include "shared_test_classes/base/ov_subgraph.hpp"
 #include "common_test_utils/ov_plugin_cache.hpp"
-#include "intel_gpu/properties.hpp"
+#include "openvino/runtime/intel_gpu/properties.hpp"
 
 namespace {
 

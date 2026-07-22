@@ -12,7 +12,7 @@
 #include "openvino/op/multiply.hpp"
 #include "openvino/runtime/intel_gpu/properties.hpp"
 #include "common_test_utils/ov_plugin_cache.hpp"
-#include "intel_gpu/properties.hpp"
+#include "openvino/runtime/intel_gpu/properties.hpp"
 
 namespace {
 
