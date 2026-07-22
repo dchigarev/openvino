@@ -15,6 +15,7 @@
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "openvino/core/any.hpp"
+#include "openvino/core/node.hpp"
 #include "openvino/runtime/tensor.hpp"
 
 namespace ov::mlir {
