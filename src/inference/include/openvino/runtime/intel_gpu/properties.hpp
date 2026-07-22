@@ -140,6 +140,18 @@ static constexpr Property<bool> enable_sdpa_optimization{"GPU_ENABLE_SDPA_OPTIMI
 static constexpr Property<bool> enable_lora_operation{"GPU_ENABLE_LORA_OPERATION"};
 
 /**
+ * @brief Enables MLIR-based Graph Compiler execution for supported subgraphs.
+ * When on, matching subgraphs (matmul, elementwise, SDPA, reduction, etc.)
+ * are compiled through the MLIR/Graph-Compiler pipeline and executed as a
+ * single fused GPU kernel via cldnn::mlir_primitive.
+ * Requires the plugin to be built with -DENABLE_GRAPH_COMPILER=ON; setting
+ * this to true on a plugin built without Graph Compiler support raises an
+ * exception at compile_model() time.
+ * @ingroup ov_runtime_ocl_gpu_prop_cpp_api
+ */
+static constexpr Property<bool> enable_mlir{"GPU_ENABLE_MLIR"};
+
+/**
  * @brief Turning on this property enables kernels reuse between implementations, resulting in a lower memory footprint.
  * However, as a drawback, OpenCL set_arguments() call will be made more often, resulting in higher host pressure
  * and slower execution in some host-bottleneck cases.

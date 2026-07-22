@@ -13,8 +13,9 @@ namespace mlir {
 
 using NodePtr = std::shared_ptr<ov::Node>;
 using SymbolPtr = std::shared_ptr<ov::Symbol>;
-using OVOutputTypes = std::vector<std::tuple<ov::element::Type, ov::PartialShape>>;
 using InputVector = std::vector<ov::Input<ov::Node>>;
+// OVOutputTypes moved to intel_gpu/op/mlir_op.hpp — include that header from
+// files that construct MLIROp (convert.cpp does).
 
 } // namespace mlir
 } // namespace ov

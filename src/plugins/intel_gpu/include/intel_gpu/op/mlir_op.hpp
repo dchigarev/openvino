@@ -1,0 +1,63 @@
+// Copyright (C) 2018-2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#pragma once
+
+#include <memory>
+#include <tuple>
+#include <vector>
+
+#include "openvino/core/any.hpp"
+#include "openvino/core/partial_shape.hpp"
+#include "openvino/core/type/element_type.hpp"
+#include "openvino/op/op.hpp"
+#include "openvino/runtime/tensor.hpp"
+
+namespace ov::mlir {
+
+// Forward declaration only — the concrete MLIREvaluateBase / MLIREvaluateGcGPU
+// classes live in the private plugin/transformations/mlir/mlir_evaluate.hpp
+// header and pull in MLIR/GraphCompiler symbols. Users of MLIROp that only
+// construct/query/evaluate it never need to see those private types; a
+// shared_ptr<MLIREvaluateBase> member compiles cleanly against an incomplete
+// type.
+class MLIREvaluateBase;
+
+using OVOutputTypes = std::vector<std::tuple<ov::element::Type, ov::PartialShape>>;
+
+// Maps [output index][dimension index] -> [input index][dimension index] to
+// infer shapes for the entire subgraph.
+using DimensionsMap = std::vector<std::vector<std::tuple<size_t, size_t>>>;
+
+class MLIROp : public ov::op::Op {
+    std::shared_ptr<MLIREvaluateBase> engine;
+    OVOutputTypes output_types;
+    DimensionsMap dimensions_map;
+
+public:
+    OPENVINO_OP("MLIROp");
+
+    MLIROp() = default;
+
+    MLIROp(const ov::OutputVector& args,
+           std::shared_ptr<MLIREvaluateBase> engine,
+           const OVOutputTypes& output_types,
+           const DimensionsMap& dimensions_map);
+
+    // Explicit destructor declaration (definition in .cpp) so that the
+    // implicitly-generated destructor doesn't try to instantiate
+    // ~shared_ptr<MLIREvaluateBase>() against an incomplete type.
+    ~MLIROp() override;
+
+    void validate_and_infer_types() override;
+    std::shared_ptr<ov::Node> clone_with_new_inputs(const ov::OutputVector& new_args) const override;
+    bool evaluate(ov::TensorVector& outputs, const ov::TensorVector& inputs) const override;
+    bool evaluate(ov::TensorVector& outputs,
+                  const ov::TensorVector& inputs,
+                  const ov::EvaluationContext& evaluationContext) const override;
+    bool has_evaluate() const override;
+    std::vector<ov::PartialShape> shape_infer(const std::vector<ov::PartialShape>& input_shapes) const;
+};
+
+}  // namespace ov::mlir

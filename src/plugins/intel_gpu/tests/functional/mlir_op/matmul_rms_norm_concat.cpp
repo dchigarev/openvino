@@ -17,9 +17,18 @@
 #include "openvino/op/transpose.hpp"
 #include "shared_test_classes/base/benchmark.hpp"
 #include "shared_test_classes/base/ov_subgraph.hpp"
-#include "transformations/mlir/convert.hpp"
+#include "common_test_utils/ov_plugin_cache.hpp"
+#include "intel_gpu/properties.hpp"
 
 namespace {
+
+// Same resolution the plugin uses: property (set via GPU_ENABLE_MLIR /
+// OV_GPU_ENABLE_MLIR env var) → default from options.inl (false).
+static bool is_mlir_enabled() {
+    return ov::test::utils::PluginCache::get()
+        .core()->get_property(ov::test::utils::DEVICE_GPU,
+                              ov::intel_gpu::enable_mlir);
+}
 
 //    A(1xSEQx1536xf16)
 //    ▼
@@ -116,7 +125,7 @@ TEST_P(MatMulRmsnormTest, Inference) {
     run();
 }
 TEST_P(MatMulRmsnormBenchmark, Inference) {
-    if (ov::pass::is_mlir_transform_enabled())
+    if (is_mlir_enabled())
         run_benchmark("MLIROp");
     else
         run_benchmark({"FullyConnected", "Add", "Reshape", "Transpose", "RMS"});
@@ -175,7 +184,7 @@ TEST_P(MatMulRmsnormConcatTest, Inference) {
     run();
 }
 TEST_P(MatMulRmsnormConcatBenchmark, Inference) {
-    if (ov::pass::is_mlir_transform_enabled())
+    if (is_mlir_enabled())
         run_benchmark("MLIROp");
     else
         run_benchmark({"FullyConnected", "Add", "Reshape", "Transpose", "RMS", "Concat"});

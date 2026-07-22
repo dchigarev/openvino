@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "transformations/mlir/convert.hpp"
+#include "convert.hpp"
 
 #include <algorithm>
 #include <functional>
@@ -76,7 +76,8 @@
 
 #include "gc/Transforms/Passes.h"
 
-#include "mlir_op.hpp"
+#include "intel_gpu/op/mlir_op.hpp"
+#include "mlir_evaluate.hpp"
 #include "conversion/patterns.hpp"
 #include "openvino/core/dimension.hpp"
 #include "openvino/core/rt_info.hpp"
@@ -402,9 +403,7 @@ MLIRContext* get_shared_mlir_context() {
 
 } // namespace
 
-void ov::pass::transformMLIR(std::shared_ptr<ov::Model> model,
-                             std::shared_ptr<ov::EvaluationContext> loweringContext) {
-    if (is_mlir_transform_enabled()) {
-        injectMLIR(model, get_shared_mlir_context(), loweringContext);
-    }
+void ov::intel_gpu::mlir::transformMLIR(std::shared_ptr<ov::Model> model,
+                                        std::shared_ptr<ov::EvaluationContext> loweringContext) {
+    injectMLIR(model, get_shared_mlir_context(), loweringContext);
 }

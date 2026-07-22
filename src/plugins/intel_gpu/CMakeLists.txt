@@ -147,9 +147,6 @@ if(ENABLE_GRAPH_COMPILER)
     target_link_libraries(${mlir_lib} PRIVATE openvino::runtime openvino_intel_gpu_graph GraphCompiler)
     target_include_directories(${mlir_lib} PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include/
-            # FIXME: remove when ov::MLIROp definition is moved to a common plugin header
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/plugin
-            ${OpenVINO_SOURCE_DIR}/src/common/transformations/include
             ${OV_GPU_MLIR_DIR})
 
     set(GPU_PLUGIN_OBJECT_LIBRARIES ${mlir_lib})
@@ -176,11 +173,11 @@ target_include_directories(${TARGET_NAME} PRIVATE
 if(ENABLE_GRAPH_COMPILER)
     target_link_libraries(${TARGET_NAME} PRIVATE GraphCompiler)
     target_compile_definitions(${TARGET_NAME} PUBLIC GRAPH_COMPILER)
+    # plugin/ops/mlir_op.cpp and plugin/transformations_pipeline.cpp include
+    # "transformations/mlir/{convert,...}.hpp" — these live under
+    # src/plugin/transformations/mlir/ and are resolved via this path.
     target_include_directories(${TARGET_NAME} PRIVATE
-            # FIXME: remove when ov::MLIROp definition is moved to a common plugin header
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/plugin
-            ${OpenVINO_SOURCE_DIR}/src/common/transformations/include
-            ${OV_GPU_MLIR_DIR})
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/plugin)
 endif()
 
 ov_set_threading_interface_for(${TARGET_NAME})
