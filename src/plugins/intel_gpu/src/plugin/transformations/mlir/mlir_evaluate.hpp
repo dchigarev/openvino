@@ -37,7 +37,7 @@ public:
 };
 
 class MLIREvaluateGcGPU : public MLIREvaluateBase {
-    std::shared_ptr<const gc::gpu::OclModule> module;
+    std::shared_ptr<const ::mlir::gc::gpu::OclModule> module;
 
 public:
     MLIREvaluateGcGPU(OwningOpRef<ModuleOp> _module,
@@ -51,10 +51,10 @@ public:
                        const ov::EvaluationContext& evaluationContext) override;
 
 private:
-    gc::gpu::OclContext build_ocl_context(const ov::EvaluationContext& evaluationContext,
-                                          std::vector<void*>& waitList);
+    ::mlir::gc::gpu::OclContext build_ocl_context(const ov::EvaluationContext& evaluationContext,
+                                                  std::vector<void*>& waitList);
     static void maybe_set_result_events(const ov::EvaluationContext& evaluationContext,
-                                        gc::gpu::OclContext& ctx);
+                                        ::mlir::gc::gpu::OclContext& ctx);
 };
 
 }  // namespace ov::mlir

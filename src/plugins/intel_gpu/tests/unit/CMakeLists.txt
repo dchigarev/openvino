@@ -36,6 +36,8 @@ file(GLOB_RECURSE SOURCES_MAIN
 
 if(TARGET openvino_intel_gpu_plugin)
     list(REMOVE_ITEM SOURCES_MAIN ${GPU_MLIR_SOURCES})
+    list(REMOVE_ITEM SOURCES_MAIN
+        "${CMAKE_HOME_DIRECTORY}/src/plugins/intel_gpu/src/plugin/transformations/op/mlir_op.cpp")
 endif()
 
 # Those tests have dependency on OpenCL runtime
