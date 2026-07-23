@@ -10,8 +10,8 @@
 #include <vector>
 
 #include "openvino/core/shape.hpp"
-#include "transformations/mlir/mlir_evaluate.hpp"
-#include "transformations/mlir/properties.hpp"
+#include "../mlir/mlir_evaluate.hpp"
+#include "../mlir/properties.hpp"
 
 namespace ov::mlir {
 
