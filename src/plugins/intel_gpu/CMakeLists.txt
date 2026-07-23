@@ -172,7 +172,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
 
 if(ENABLE_GRAPH_COMPILER)
     target_link_libraries(${TARGET_NAME} PRIVATE GraphCompiler)
-    target_compile_definitions(${TARGET_NAME} PUBLIC GRAPH_COMPILER)
+    target_compile_definitions(${TARGET_NAME} PRIVATE GRAPH_COMPILER)
     # plugin/ops/mlir_op.cpp and plugin/transformations_pipeline.cpp include
     # "transformations/mlir/{convert,...}.hpp" — these live under
     # src/plugin/transformations/mlir/ and are resolved via this path.
