@@ -6,12 +6,13 @@
 
 #include "intel_gpu/op/mlir_op.hpp"
 
+#include <cassert>
 #include <memory>
 #include <vector>
 
 #include "openvino/core/shape.hpp"
-#include "../mlir/mlir_evaluate_base.hpp"
-#include "../mlir/properties.hpp"
+#include "../mlir/interface/mlir_evaluate_base.hpp"
+#include "../mlir/interface/properties.hpp"
 
 namespace ov::mlir {
 

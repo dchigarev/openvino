@@ -14,7 +14,7 @@
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "openvino/runtime/intel_gpu/remote_properties.hpp"
-#include "properties.hpp"
+#include "interface/properties.hpp"
 
 namespace ov::mlir {
 

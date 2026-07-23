@@ -10,7 +10,7 @@
 #include "gc/ExecutionEngine/GPURuntime/GpuOclRuntime.h"
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "mlir_evaluate_base.hpp"
+#include "interface/mlir_evaluate_base.hpp"
 #include "openvino/core/any.hpp"
 #include "openvino/core/node.hpp"
 #include "openvino/runtime/tensor.hpp"
