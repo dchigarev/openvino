@@ -45,11 +45,6 @@ public:
            const OVOutputTypes& output_types,
            const DimensionsMap& dimensions_map);
 
-    // Explicit destructor declaration (definition in .cpp) so that the
-    // implicitly-generated destructor doesn't try to instantiate
-    // ~shared_ptr<MLIREvaluateBase>() against an incomplete type.
-    ~MLIROp() override;
-
     void validate_and_infer_types() override;
     std::shared_ptr<ov::Node> clone_with_new_inputs(const ov::OutputVector& new_args) const override;
     bool evaluate(ov::TensorVector& outputs, const ov::TensorVector& inputs) const override;

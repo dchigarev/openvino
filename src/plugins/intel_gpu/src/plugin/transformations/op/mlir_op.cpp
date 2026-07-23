@@ -80,12 +80,6 @@ MLIROp::MLIROp(const ov::OutputVector& args,
     constructor_validate_and_infer_types();
 }
 
-// Destructor definition placed in the .cpp so that ~shared_ptr<MLIREvaluateBase>
-// sees a complete MLIREvaluateBase (via mlir_evaluate.hpp). If the destructor
-// were inline in the header, TUs that include mlir_op.hpp would need the full
-// definition of MLIREvaluateBase.
-MLIROp::~MLIROp() = default;
-
 std::vector<ov::PartialShape> MLIROp::shape_infer(const std::vector<ov::PartialShape>& input_shapes) const {
     OPENVINO_ASSERT(dimensions_map.size() == output_types.size(),
                     "MLIROp::shape_infer: dimensions_map size (", dimensions_map.size(),
