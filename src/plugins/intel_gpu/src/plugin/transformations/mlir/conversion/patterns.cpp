@@ -6,6 +6,7 @@
 
 #include <openvino/op/add.hpp>
 #include <openvino/op/concat.hpp>
+#include <openvino/op/constant.hpp>
 #include <openvino/op/divide.hpp>
 #include <openvino/op/floor.hpp>
 #include <openvino/op/power.hpp>
@@ -93,7 +94,25 @@ ReshapePattern::ReshapePattern()
     : MarkPattern(wrap_type<v1::Reshape>({any_input(), any_input()}), ConvertReshape()) {}
 
 SDPAPattern::SDPAPattern()
-    : MarkPattern(wrap_type<v13::ScaledDotProductAttention>(), ConvertSDPA()) {}
+    : MarkPattern(
+        wrap_type<v13::ScaledDotProductAttention>([](const Output<Node>& output) {
+            // TEMP: MLIR SDPA converter does not support attention_mask with
+            // independent dynamic symbols (as in SD3 text encoders). Match
+            // only SDPA nodes without a real mask input, i.e. no mask at all
+            // or a scalar constant "no-mask" placeholder.
+            auto node = std::dynamic_pointer_cast<v13::ScaledDotProductAttention>(output.get_node_shared_ptr());
+            assert(node);
+            if (node->get_causal()) return false;
+            const auto input_size = node->get_input_size();
+            if (input_size < 4) return true;
+            auto mask_node = node->get_input_node_shared_ptr(3);
+            auto mask_const = std::dynamic_pointer_cast<v0::Constant>(mask_node);
+            if (mask_const && mask_const->get_output_partial_shape(0).size() == 0) {
+                return true;  // scalar constant placeholder
+            }
+            return false;
+        }),
+        ConvertSDPA()) {}
 
 ShapeOfPattern::ShapeOfPattern()
     : MarkPattern(wrap_type<v3::ShapeOf>({any_input()}), ConvertShapeOf()) {}
