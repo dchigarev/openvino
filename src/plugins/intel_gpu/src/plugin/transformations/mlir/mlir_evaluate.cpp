@@ -16,7 +16,7 @@
 #include "openvino/runtime/intel_gpu/remote_properties.hpp"
 #include "interface/properties.hpp"
 
-namespace ov::mlir {
+namespace ov::intel_gpu::mlir {
 
 using namespace ::mlir;
 
@@ -152,4 +152,4 @@ gc::gpu::OclContext MLIREvaluateGcGPU::build_ocl_context(const ov::EvaluationCon
                                reinterpret_cast<cl_event*>(waitList.data()));
 }
 
-}  // namespace ov::mlir
+}  // namespace ov::intel_gpu::mlir

@@ -9,7 +9,7 @@
 #include "openvino/core/node.hpp"
 #include "openvino/runtime/tensor.hpp"
 
-namespace ov::mlir {
+namespace ov::intel_gpu::mlir {
 
 class MLIREvaluateBase {
 public:
@@ -22,4 +22,4 @@ public:
     virtual ~MLIREvaluateBase() = default;
 };
 
-}  // namespace ov::mlir
+}  // namespace ov::intel_gpu::mlir

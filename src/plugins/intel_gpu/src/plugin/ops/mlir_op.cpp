@@ -10,7 +10,7 @@
 #include "intel_gpu/primitives/mlir_primitive.hpp"
 
 namespace ov::op::internal {
-using MLIR = ov::mlir::MLIROp;
+using MLIR = ov::intel_gpu::op::MLIROp;
 }  // namespace ov::op::internal
 
 namespace ov::intel_gpu {

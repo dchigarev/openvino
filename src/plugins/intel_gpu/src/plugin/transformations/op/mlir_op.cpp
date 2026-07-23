@@ -14,7 +14,7 @@
 #include "../mlir/interface/mlir_evaluate_base.hpp"
 #include "../mlir/interface/properties.hpp"
 
-namespace ov::mlir {
+namespace ov::intel_gpu::op {
 
 namespace {
 
@@ -71,7 +71,7 @@ struct MemRefDescriptor {
 }  // namespace
 
 MLIROp::MLIROp(const ov::OutputVector& args,
-               std::shared_ptr<MLIREvaluateBase> engine,
+               std::shared_ptr<mlir::MLIREvaluateBase> engine,
                const OVOutputTypes& output_types,
                const DimensionsMap& dimensions_map)
     : Op(args),
@@ -189,6 +189,6 @@ bool MLIROp::has_evaluate() const {
     return true;
 }
 
-}  // namespace ov::mlir
+}  // namespace ov::intel_gpu::op
 
 #endif  // GRAPH_COMPILER

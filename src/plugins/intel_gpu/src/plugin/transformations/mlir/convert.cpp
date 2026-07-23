@@ -89,7 +89,7 @@
 namespace {
 
 using namespace mlir;
-using namespace ov::mlir;
+using namespace ov::intel_gpu::mlir;
 
 MemRefType convertTensorToMemRef(TensorType tensorType) {
     ArrayRef<int64_t> shape = tensorType.getShape();
@@ -257,7 +257,7 @@ NodePtr ngraph_to_mlir_op(MLIRContext* context,
     for (size_t idx : keptInputIndices) {
         inputs.push_back(subgraph->inputs[idx]);
     }
-    using Index = DimensionsMap::value_type::value_type;
+    using Index = ov::intel_gpu::op::DimensionsMap::value_type::value_type;
     std::map<SymbolPtr, Index> input_map;
     for (size_t i = 0; i < inputs.size(); ++i) {
         auto input = inputs[i];
@@ -279,15 +279,15 @@ NodePtr ngraph_to_mlir_op(MLIRContext* context,
 
     std::tuple<size_t, size_t> empty(-1, -1);
     const auto& outputs = subgraph->outputs;
-    OVOutputTypes output_types;
-    DimensionsMap output_map;
+    ov::intel_gpu::op::OVOutputTypes output_types;
+    ov::intel_gpu::op::DimensionsMap output_map;
     output_map.reserve(outputs.size());
     for (size_t i = 0; i < outputs.size(); ++i) {
         auto output = outputs[i];
         auto shape = output.get_partial_shape();
         output_types.push_back(
             std::make_tuple(output.get_element_type(), shape));
-        DimensionsMap::value_type dm;
+        ov::intel_gpu::op::DimensionsMap::value_type dm;
         dm.reserve(shape.size());
         for (size_t j = 0; j < shape.size(); ++j) {
             auto dim = shape[j];
@@ -297,7 +297,7 @@ NodePtr ngraph_to_mlir_op(MLIRContext* context,
         }
         output_map.emplace_back(dm);
     }
-    return std::make_shared<MLIROp>(
+    return std::make_shared<ov::intel_gpu::op::MLIROp>(
         inputs,
         std::make_shared<MLIREvaluateGcGPU>(std::move(module), loweringContext),
         output_types,

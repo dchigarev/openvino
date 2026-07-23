@@ -15,7 +15,7 @@
 #include "openvino/core/node.hpp"
 #include "openvino/runtime/tensor.hpp"
 
-namespace ov::mlir {
+namespace ov::intel_gpu::mlir {
 
 using ::mlir::ExecutionEngine;
 using ::mlir::ModuleOp;
@@ -42,4 +42,4 @@ private:
                                         ::mlir::gc::gpu::OclContext& ctx);
 };
 
-}  // namespace ov::mlir
+}  // namespace ov::intel_gpu::mlir

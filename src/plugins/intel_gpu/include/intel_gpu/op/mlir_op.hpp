@@ -14,9 +14,11 @@
 #include "openvino/op/op.hpp"
 #include "openvino/runtime/tensor.hpp"
 
-namespace ov::mlir {
-
+namespace ov::intel_gpu {
+namespace mlir {
 class MLIREvaluateBase;
+}  // namespace mlir
+namespace op {
 
 using OVOutputTypes = std::vector<std::tuple<ov::element::Type, ov::PartialShape>>;
 
@@ -25,7 +27,7 @@ using OVOutputTypes = std::vector<std::tuple<ov::element::Type, ov::PartialShape
 using DimensionsMap = std::vector<std::vector<std::tuple<size_t, size_t>>>;
 
 class MLIROp : public ov::op::Op {
-    std::shared_ptr<MLIREvaluateBase> engine;
+    std::shared_ptr<mlir::MLIREvaluateBase> engine;
     OVOutputTypes output_types;
     DimensionsMap dimensions_map;
 
@@ -35,7 +37,7 @@ public:
     MLIROp() = default;
 
     MLIROp(const ov::OutputVector& args,
-           std::shared_ptr<MLIREvaluateBase> engine,
+           std::shared_ptr<mlir::MLIREvaluateBase> engine,
            const OVOutputTypes& output_types,
            const DimensionsMap& dimensions_map);
 
@@ -49,4 +51,5 @@ public:
     std::vector<ov::PartialShape> shape_infer(const std::vector<ov::PartialShape>& input_shapes) const;
 };
 
-}  // namespace ov::mlir
+}  // namespace op
+}  // namespace ov::intel_gpu
