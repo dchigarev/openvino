@@ -10,6 +10,7 @@
 #include "gc/ExecutionEngine/GPURuntime/GpuOclRuntime.h"
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir_evaluate_base.hpp"
 #include "openvino/core/any.hpp"
 #include "openvino/core/node.hpp"
 #include "openvino/runtime/tensor.hpp"
@@ -19,17 +20,6 @@ namespace ov::mlir {
 using ::mlir::ExecutionEngine;
 using ::mlir::ModuleOp;
 using ::mlir::OwningOpRef;
-
-class MLIREvaluateBase {
-public:
-    virtual bool requires_packed_args() const = 0;
-    virtual bool invoke(const ov::TensorVector& inputs,
-                        ov::TensorVector& outputs,
-                        const ov::EvaluationContext& evaluationContext) = 0;
-    virtual bool invoke_packed(std::vector<void*>& args,
-                               const ov::EvaluationContext& evaluationContext) = 0;
-    virtual ~MLIREvaluateBase() = default;
-};
 
 class MLIREvaluateGcGPU : public MLIREvaluateBase {
     std::shared_ptr<const ::mlir::gc::gpu::OclModule> module;
