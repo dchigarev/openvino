@@ -18,8 +18,6 @@ namespace {
 
 using ov::test::InputShape;
 
-// Same resolution the plugin uses: property (set via GPU_ENABLE_MLIR /
-// OV_GPU_ENABLE_MLIR env var) → default from options.inl (false).
 static bool is_mlir_enabled() {
     return ov::test::utils::PluginCache::get()
         .core()->get_property(ov::test::utils::DEVICE_GPU,

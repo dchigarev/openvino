@@ -16,12 +16,6 @@
 
 namespace ov::mlir {
 
-// Forward declaration only — the concrete MLIREvaluateBase / MLIREvaluateGcGPU
-// classes live in the private plugin/transformations/mlir/mlir_evaluate.hpp
-// header and pull in MLIR/GraphCompiler symbols. Users of MLIROp that only
-// construct/query/evaluate it never need to see those private types; a
-// shared_ptr<MLIREvaluateBase> member compiles cleanly against an incomplete
-// type.
 class MLIREvaluateBase;
 
 using OVOutputTypes = std::vector<std::tuple<ov::element::Type, ov::PartialShape>>;

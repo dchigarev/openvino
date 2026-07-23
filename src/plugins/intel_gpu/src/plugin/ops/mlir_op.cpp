@@ -9,11 +9,6 @@
 #include "intel_gpu/plugin/program_builder.hpp"
 #include "intel_gpu/primitives/mlir_primitive.hpp"
 
-// REGISTER_FACTORY_IMPL(internal, MLIR) expands to:
-//   * RegisterFactory<ov::op::internal::MLIR> (requires the alias below)
-//   * a call to Create##MLIR##Op == CreateMLIROp
-// We use op_name = "MLIR" (not "MLIROp") to keep the "Op" suffix that the
-// macro concatenates and match the Gemm/KVCache/etc. naming convention.
 namespace ov::op::internal {
 using MLIR = ov::mlir::MLIROp;
 }  // namespace ov::op::internal
@@ -25,7 +20,6 @@ static void CreateMLIROp(ProgramBuilder& p, const std::shared_ptr<ov::op::intern
     const std::string layer_name = layer_type_name_ID(op);
     const size_t num_outputs = op->get_output_size();
 
-    // MLIROp is publicly visible now — call shape_infer() directly, no helper needed.
     cldnn::mlir_primitive::shape_infer_function shape_infer_f =
         [op](const std::vector<ov::PartialShape>& input_shapes) {
             return op->shape_infer(input_shapes);

@@ -1,10 +1,6 @@
 // Copyright (C) 2018-2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
-// Private plugin header — full definition of the MLIR executor interface and
-// its GC-GPU implementation. Pulls MLIR / Graph Compiler headers, so it must
-// stay inside plugin/transformations/mlir/ and never be included from the
-// public plugin surface.
 
 #pragma once
 
@@ -27,7 +23,6 @@ using ::mlir::OwningOpRef;
 class MLIREvaluateBase {
 public:
     virtual bool requires_packed_args() const = 0;
-    // ::invoke() doesn't require any args preprocessing so we can pass tensors as is
     virtual bool invoke(const ov::TensorVector& inputs,
                         ov::TensorVector& outputs,
                         const ov::EvaluationContext& evaluationContext) = 0;
