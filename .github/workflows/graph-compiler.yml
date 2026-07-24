@@ -53,17 +53,12 @@ jobs:
       
       - name: Test
         run: |
-          # These tests require MLIR patches:
-          # https://github.com/llvm/llvm-project/pull/208932
-          # https://github.com/llvm/llvm-project/pull/197281
-          exclude='.*ScaledAttnLayerGPUMlirTest.CompareWithRefs.*|mlir_Transpose.*|mlir_ReshapeAndTranspose.*'
+          exclude=''
 
           export OV_GPU_ENABLE_MLIR=1
           export OV_GPU_QUEUE_TYPE=out-of-order
           func_tests="$OUTPUT_DIR/bin/intel64/Release/ov_gpu_func_tests"
           filter=$(printf '%s:' \
-            'MLIRExecution.SimpleMatmulf16' \
-            'MLIRExecution.SDPABasic' \
             '*ScaledAttnLayerGPUMlirTest*' \
             'mlir_*' \
           )
