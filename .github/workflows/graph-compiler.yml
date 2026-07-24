@@ -64,7 +64,7 @@ jobs:
           )
           tests=$("$func_tests" --gtest_list_tests --gtest_filter="${filter%:}" \
             | awk -v exclude="$exclude" '/^  /{print suite $1} /^[^ ]/{suite=$1}' \
-            | grep -v -E "$exclude")
+            | grep -v -E "${exclude:-a^}")
           start=$SECONDS
           echo "$tests" | xargs -P 32 -I{} "$func_tests" --gtest_filter='{}'
           echo "Run $(echo "$tests" | wc -l) tests in $((SECONDS - start))s"
