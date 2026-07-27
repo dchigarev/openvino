@@ -28,10 +28,10 @@ struct ConvertUnsqueeze {
         const auto ov_output_element_type = node->get_output_element_type(0);
         const auto ov_input_shape = node->get_input_partial_shape(0);
 
-        OPENVINO_ASSERT(ov_input_shape.rank().is_static(), "expecting static output shape");
+        assert(ov_input_shape.rank().is_static() && "expecting static output shape");
 
         auto const_axes = dynamic_cast<ov::op::v0::Constant*>(node->get_input_node_ptr(1));
-        OPENVINO_ASSERT(const_axes, "non-const axes not supported");
+        assert(const_axes && "non-const axes not supported");
         ov::Coordinate coords = const_axes->get_coordinate_val();
 
         // Calculate the resulting shape.

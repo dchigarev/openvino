@@ -36,7 +36,7 @@ struct ConvertMatMul {
         assert(matmul_node);
         bool isTransposedA = matmul_node->get_transpose_a();
         bool isTransposedB = matmul_node->get_transpose_b();
-        OPENVINO_ASSERT(!(isTransposedA && isTransposedB), "MatMul: transpose on both inputs is not supported");
+        assert(!(isTransposedA && isTransposedB));
 
         // TODO: move the unit-dimension-folding logic to the graph-compiler
         bool batch = true;

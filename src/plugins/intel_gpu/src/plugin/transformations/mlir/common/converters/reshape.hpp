@@ -16,12 +16,9 @@ struct ConvertReshape {
     Operation* operator()(ConversionContext& context, NodePtr node) {
         const auto in_shape = node->get_input_partial_shape(0);
         const auto out_shape = node->get_output_partial_shape(0);
-        OPENVINO_ASSERT(in_shape.rank().is_static() && out_shape.rank().is_static(),
-                        "Reshape: dynamic rank is not supported");
-        OPENVINO_ASSERT(llvm::all_of(in_shape, std::mem_fn(&ov::Dimension::is_static)),
-                        "Reshape: dynamic input shape is not supported");
-        OPENVINO_ASSERT(llvm::all_of(out_shape, std::mem_fn(&ov::Dimension::is_static)),
-                        "Reshape: dynamic output shape is not supported");
+        assert(in_shape.rank().is_static() && out_shape.rank().is_static());
+        assert(llvm::all_of(in_shape, std::mem_fn(&ov::Dimension::is_static)));
+        assert(llvm::all_of(out_shape, std::mem_fn(&ov::Dimension::is_static)));
         const auto in_rank = static_cast<size_t>(in_shape.rank().get_length());
         const auto out_rank = static_cast<size_t>(out_shape.rank().get_length());
         const bool expand = out_rank >= in_rank;
@@ -48,7 +45,7 @@ struct ConvertReshape {
                     group.push_back(src_i);
                 }
             }
-            OPENVINO_ASSERT(src_prod == dst_prod, "shape mismatch: incompatible reshape");
+            assert(src_prod == dst_prod && "shape mismatch: incompatible reshape");
             reassociation.push_back(group);
         }
 
