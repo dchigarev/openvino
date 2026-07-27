@@ -335,7 +335,7 @@ void ScaledAttnLayerGPUMlirTest::check_mlir_execution() {
             continue;
         }
         const auto layer_type = it->second.as<std::string>();
-        if (layer_type == "MLIROp") {
+        if (layer_type == "mlir_primitive" || layer_type == "MLIROp") {
             has_mlir_op = true;
         } else if (layer_type == "ScaledDotProductAttention" || layer_type == "scaled_dot_product_attention") {
             has_sdpa = true;
