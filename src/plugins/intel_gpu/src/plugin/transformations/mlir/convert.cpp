@@ -321,6 +321,10 @@ void replace_subgraph(SubgraphPtr subgraph, NodePtr node) {
     }
 }
 
+}  // namespace
+
+namespace ov::intel_gpu::mlir {
+
 // Marks matched subgraphs with a custom function name so the
 // Partitioner groups them into a dedicated MLIR function.
 // The patterns are specified with the env var:
@@ -358,7 +362,7 @@ class PatternMatcher : public ov::pass::ModelPass {
     }();
 
 public:
-    OPENVINO_RTTI("PatternMatcher");
+    OPENVINO_MODEL_PASS_RTTI("PatternMatcher");
 
     bool run_on_model(const std::shared_ptr<ov::Model>& model) override {
         if (patterns.empty())
@@ -464,7 +468,7 @@ class Partitioner : public ov::pass::ModelPass {
     MLIRContext* context;
     std::shared_ptr<ov::EvaluationContext> loweringContext;
 public:
-    OPENVINO_RTTI("Partitioner");
+    OPENVINO_MODEL_PASS_RTTI("Partitioner");
 
     Partitioner(MLIRContext* context, std::shared_ptr<ov::EvaluationContext> loweringContext) :
         context(context),
@@ -485,6 +489,12 @@ public:
     }
 };
 
+}  // namespace ov::intel_gpu::mlir
+
+namespace {
+
+using namespace mlir;
+using namespace ov::intel_gpu::mlir;
 
 void injectMLIR(std::shared_ptr<ov::Model> model,
                 MLIRContext* context,
