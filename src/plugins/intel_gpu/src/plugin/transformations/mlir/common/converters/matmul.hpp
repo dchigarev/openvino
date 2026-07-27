@@ -36,7 +36,7 @@ struct ConvertMatMul {
         assert(matmul_node);
         bool isTransposedA = matmul_node->get_transpose_a();
         bool isTransposedB = matmul_node->get_transpose_b();
-        assert(!(isTransposedA && isTransposedB));
+        OPENVINO_ASSERT(!(isTransposedA && isTransposedB), "MatMul: transpose on both inputs is not supported");
 
         // TODO: move the unit-dimension-folding logic to the graph-compiler
         bool batch = true;
@@ -70,7 +70,7 @@ struct ConvertMatMul {
             int64_t rank = ov_output_shape.size();
             auto type = mlir::cast<RankedTensorType>(tensor.getType());
             auto shape = type.getShape();
-            if (shape.size() == rank)
+            if (static_cast<int64_t>(shape.size()) == rank)
                 return tensor;
             SmallVector<ReassociationIndices> reassoc;
             ReassociationIndices leading;

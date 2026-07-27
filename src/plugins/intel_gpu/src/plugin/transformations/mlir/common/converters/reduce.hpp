@@ -38,7 +38,7 @@ struct ConvertReduce {
         SmallVector<int64_t> reduction_axes;
         {
             auto input1 = dynamic_cast<ov::op::v0::Constant*>(node->get_input_node_ptr(1));
-            assert(input1 && "Only constant axes are supported");
+            OPENVINO_ASSERT(input1, "Only constant axes are supported");
             auto axes = input1->cast_vector<int64_t>();
             reduction_axes.reserve(axes.size());
             for (int64_t axis : axes) {
@@ -48,10 +48,10 @@ struct ConvertReduce {
         ::mlir::RankedTensorType result_type;
         {
             SmallVector<int64_t> shape;
-            for (size_t i = 0; i < input_rank; ++i) {
+            for (int64_t i = 0; i < input_rank; ++i) {
                 if (!llvm::is_contained(reduction_axes, i)) {
                     auto dim = input_shape[i];
-                    assert(dim.is_static() && "Dynamic shapes not supported");
+                    OPENVINO_ASSERT(dim.is_static(), "Dynamic shapes not supported");
                     shape.push_back(dim.get_length());
                 }
             }

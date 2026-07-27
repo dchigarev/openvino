@@ -50,7 +50,7 @@ mlir::arith::ConstantOp getConstant(OpBuilder& builder,
     } else if (type.isFloat()) {
         attr = builder.getFloatAttr(type, double(value));
     }
-    assert(attr && "Unsupported ConstantOp type");
+    OPENVINO_ASSERT(attr, "Unsupported ConstantOp type");
     return arith::ConstantOp::create(builder, loc.value_or(builder.getUnknownLoc()), type, attr);
 }
 
