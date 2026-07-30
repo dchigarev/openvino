@@ -17,3 +17,6 @@ if (NOT MLIR_FOUND)
     set(MLIR_DIR "${llvm_cmake_dir}/mlir" CACHE PATH "" FORCE)
     find_package(MLIR REQUIRED CONFIG)
 endif()
+
+message(STATUS "LLVM_DIR: ${LLVM_DIR}")
+message(STATUS "MLIR_DIR: ${MLIR_DIR}")
