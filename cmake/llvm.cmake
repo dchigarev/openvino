@@ -6,8 +6,6 @@ find_package(LLVM CONFIG QUIET)
 if (NOT LLVM_FOUND)
     set(LLVM_DIR "/usr/lib/llvm-${SUPPORTED_LLVM_VERSION}/lib/cmake/llvm" CACHE PATH "" FORCE)
     find_package(LLVM REQUIRED CONFIG)
-elseif(NOT LLVM_VERSION_MAJOR EQUAL ${SUPPORTED_LLVM_VERSION})
-    message(FATAL_ERROR "Unsupported LLVM version: ${LLVM_VERSION_MAJOR}. Expected: ${SUPPORTED_LLVM_VERSION}.")
 endif()
 
 find_package(MLIR CONFIG QUIET)
