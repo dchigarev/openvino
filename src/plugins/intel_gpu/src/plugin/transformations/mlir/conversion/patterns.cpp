@@ -74,7 +74,7 @@ MatMulPattern::MatMulPattern()
                                         [](const Output<Node>& output) {
                                             auto node = std::dynamic_pointer_cast<v0::MatMul>(output.get_node_shared_ptr());
                                             assert(node);
-                                            return !has_dynamic_rank(node) && (!node->get_transpose_a() || !node->get_transpose_b());
+                                            return isMatMulSupported(node);
                                         }),
                   ConvertMatMul()) {}
 
