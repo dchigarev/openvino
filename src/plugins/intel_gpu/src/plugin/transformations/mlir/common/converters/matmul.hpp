@@ -93,10 +93,14 @@ struct ConvertMatMul {
             outSizes.push_back(ShapedType::isDynamic(d) ? OpFoldResult(dynamic_dimensions[dyn++]) : OpFoldResult(builder.getIndexAttr(d)));
         }
         // Fold the leading dimensions of A into M instead of broadcasting B.
-        bool foldIntoM = !isTransposedA && shapeOf(ins[1]).size() == 2;
+        bool foldIntoM = (
+            (!isTransposedA && shapeOf(ins[1]).size() == 2) ||
+            // Trivial folding of unit dimensions to get rid of batched-matmul
+            (unitLeading(shapeOf(ins[0])) && unitLeading(shapeOf(ins[1])) && unitLeading(outType.getShape()))
+        );
         auto resType = outType;
         auto resDynDims = dynamic_dimensions;
-        if (foldIntoM || (unitLeading(shapeOf(ins[0])) && unitLeading(shapeOf(ins[1])) && unitLeading(outType.getShape()))) {
+        if (foldIntoM) {
             auto collapse = [&](Value tensor) -> Value {  // Has no-op if rank == 2
                 int64_t rank = shapeOf(tensor).size();
                 if (rank <= 2) {
