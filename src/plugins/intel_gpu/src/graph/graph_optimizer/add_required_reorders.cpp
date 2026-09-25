@@ -289,7 +289,7 @@ void add_required_reorders::run(program& p) {
                 }
 
                 const auto& dep_layout = dep->get_output_layout(false, port);
-                if (format::is_default_format(dep_layout.format) && !dep_layout.data_padding) {
+                if (format::is_default_format(dep_layout.format) && !dep_layout.has_inner_padding()) {
                     continue;
                 }
 
