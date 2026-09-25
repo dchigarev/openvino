@@ -36,7 +36,7 @@ namespace ov::intel_gpu::mlir {
 namespace {
 
 using ProgramArgs = std::vector<void*>;
-using ProgramStorage = std::vector<::gc::gpu::Program::ArgStorage>;
+using ProgramArgStorage = std::deque<::gc::gpu::ArgStorage>;
 using ::gc::gpu::ArgType;
 
 cldnn::scalar_desc::Types to_scalar_type(ArgType type) {
@@ -285,7 +285,7 @@ private:
     std::vector<cldnn::event::ptr> eventScratch;
     std::vector<Event*> eventHandles;
     ProgramArgs args;
-    ProgramStorage storage;
+    ProgramArgStorage arg_storage;
 
     static std::unique_ptr<MLIRGpuRuntime> create_runtime(cldnn::stream& stream, cldnn::engine& engine) {
         return std::make_unique<GcGpuRuntime>(stream, engine);
@@ -305,8 +305,7 @@ public:
         ::gc::gpu::GpuCompiler::Options opts(device_id);
         opts.wait = false;
         opts.dump = dump;
-        ::mlir::ModuleOp mod = module.get();
-        future = compiler.compile<GcGpuRuntime>(mod, opts);
+        future = compiler.compile<GcGpuRuntime>(std::move(module), opts);
     }
 
     void wait_compiled() override {
@@ -328,10 +327,8 @@ public:
         OPENVINO_ASSERT(op.get_output_size() == instance.outputs_memory_count(), "[GPU] mlir_primitive '", instance.id(), "': output count mismatch");
         // GcGpuRuntime is the only MLIRGpuRuntime, see create_runtime().
         auto& rt = static_cast<GcGpuRuntime&>(runtime);
-        rt.args.clear();
-        rt.storage.clear();
 
-        ::gc::gpu::Program::ArgsBuilder<ProgramArgs, ProgramStorage> builder(rt.args, rt.storage);
+        ::gc::gpu::ArgsBuilder<ProgramArgs, ProgramArgStorage> builder(rt.args, rt.arg_storage);
         const auto store_memref = [&](const cldnn::memory::ptr& mem, size_t idx, bool input, unsigned rank, ov::element::Type type) {
             const auto argument = [&]() -> std::string {
                 if (!input) {
@@ -354,6 +351,13 @@ public:
                             layout.data_type,
                             " vs ",
                             type);
+            OPENVINO_ASSERT(!layout.has_inner_padding(),
+                            "[GPU] Only outermost padding is supported by mlir_primitive '",
+                            instance.id(),
+                            "', ",
+                            argument(),
+                            ": layout ",
+                            layout.to_short_string());
             // create_subbuffer borrows; this slot keeps the parent alive.
             auto* held = rt.store_memory(mem);
 
@@ -420,17 +424,15 @@ public:
         store_all(op.get_input_size(), /*input=*/true);
         store_all(op.get_output_size(), /*input=*/false);
 
-        size_t storage_idx = 0;
-        for (auto r : ranks) {
-            builder.appendStoredMemref(storage_idx, r);
-        }
-
         rt.eventHandles.clear();
         for (const auto& dep : deps) {
             rt.eventHandles.push_back(rt.store_event(dep));
         }
 
-        auto** events = program->main(rt.args, &rt, rt.eventHandles.empty() ? nullptr : rt.eventHandles.data(), static_cast<uint32_t>(rt.eventHandles.size()));
+        auto** events =
+            program->main(builder.build(*program), &rt, rt.eventHandles.empty() ? nullptr : rt.eventHandles.data(), static_cast<uint32_t>(rt.eventHandles.size()));
+        // Copy the completions out; do not wait(). OV owns the events after this.
+        // main() waits for the buffers it has allocated and frees them, so dropping the frame is safe.
         const auto& completions = rt.collect_events(events, program->eventNum());
         auto event = completions.empty() ? rt.stream().enqueue_marker(deps, need_event) : rt.stream().aggregate_events(completions, /*group=*/true, need_event);
         rt.events.clear();
