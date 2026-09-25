@@ -55,7 +55,7 @@ The op becomes a `cldnn::mlir_primitive` that owns nothing but the `MLIROp` itse
 compile or cache for it. At inference `mlir_primitive_impl::execute_impl` calls `MLIRGpuProgram::execute()`,
 which:
 
-* stores one memref per input/output buffer via `Program::ArgsBuilder` (the USM pointer plus the shape and the
+* stores one memref per input/output buffer via `gc::gpu::ArgsBuilder` (the USM pointer plus the shape and the
   dense row-major strides of the leading dimensions expected by the module);
 * calls `gc::gpu::Program::main(args, runtime, deps, nDeps)`, passing the dependency events of the primitive;
 * aggregates the events returned by the program into the event of the primitive.
