@@ -397,6 +397,15 @@ struct layout {
         return true;
     }
 
+    bool has_inner_padding() const {
+        for (size_t i = 1; i < get_rank(); ++i) {
+            if (data_padding._lower_size[i] != 0 || data_padding._upper_size[i] != 0 || data_padding._dynamic_dims_mask[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     bool is_static() const;
 
     const ov::PartialShape& get_partial_shape() const;
