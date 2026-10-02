@@ -7,6 +7,7 @@
 #include "common_test_utils/ov_tensor_utils.hpp"
 #include "mlir_test_env.hpp"
 #include "openvino/op/parameter.hpp"
+#include "shared_test_classes/base/benchmark.hpp"
 #include "shared_test_classes/base/ov_subgraph.hpp"
 
 namespace {
@@ -46,9 +47,28 @@ TEST_P(BatchMatMulTest, Inference) {
     run();
 }
 
+class BatchMatMulBenchmark : public ov::test::BenchmarkLayerTest<BatchMatMulTest> {};
+
+TEST_P(BatchMatMulBenchmark, Inference) {
+    if (ov::test::is_mlir_enabled()) {
+        run_benchmark("MLIROp");
+    } else {
+        run_benchmark("FullyConnected");
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(bench_BatchMatMul,
+                         BatchMatMulBenchmark,
+                         ::testing::Combine(::testing::Values(ov::Shape{2, 1024, 1536}, ov::Shape{2, 154, 1536}),
+                                            ::testing::Values(ov::Shape{1536, 1536}),
+                                            ::testing::Values(false),
+                                            ::testing::Values(false),
+                                            ::testing::Values(ov::element::f16)),
+                         BatchMatMulTest::getTestCaseName);
+
 INSTANTIATE_TEST_SUITE_P(mlir_BatchMatMul,
                          BatchMatMulTest,
-                         ::testing::Combine(::testing::Values(ov::Shape{1, 1024, 1536}),
+                         ::testing::Combine(::testing::Values(ov::Shape{1, 1024, 1536}, ov::Shape{2, 1024, 1536}),
                                             ::testing::Values(ov::Shape{1536, 1536}),
                                             ::testing::Values(false),
                                             ::testing::Values(true),
@@ -123,6 +143,15 @@ INSTANTIATE_TEST_SUITE_P(
     DynamicMatMulTest,
     ::testing::Combine(::testing::Values(ov::test::InputShape{ov::PartialShape{-1, -1}, {ov::Shape{512, 768}, ov::Shape{1024, 1536}, ov::Shape{128, 256}}}),
                        ::testing::Values(ov::test::InputShape{ov::PartialShape{-1, -1}, {ov::Shape{768, 384}, ov::Shape{1536, 1024}, ov::Shape{256, 512}}}),
+                       ::testing::Values(ov::element::f16)),
+    DynamicMatMulTest::getTestCaseName);
+
+// A: (B=?, M=?, K=768) x B: (768, 384) - dynamic leading dimensions folded into M.
+INSTANTIATE_TEST_SUITE_P(
+    mlir_DynamicMatMul_dynamicBatch,
+    DynamicMatMulTest,
+    ::testing::Combine(::testing::Values(ov::test::InputShape{ov::PartialShape{-1, -1, 768}, {ov::Shape{1, 512, 768}, ov::Shape{3, 128, 768}}}),
+                       ::testing::Values(ov::test::InputShape{ov::PartialShape{768, 384}, {ov::Shape{768, 384}, ov::Shape{768, 384}}}),
                        ::testing::Values(ov::element::f16)),
     DynamicMatMulTest::getTestCaseName);
 
