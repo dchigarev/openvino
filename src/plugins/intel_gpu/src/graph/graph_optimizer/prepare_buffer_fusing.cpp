@@ -26,6 +26,7 @@
 #include "lstm_seq_inst.h"
 #include "border_inst.h"
 #include "lora_inst.h"
+#include "mlir_primitive_inst.h"
 #include "mvn_inst.h"
 #include "scaled_dot_product_attention_inst.h"
 
@@ -554,6 +555,10 @@ bool crop_in_place_optimization::match(const program_node& node,
         if (user->is_type<lstm_seq>() || user->is_type<lstm_cell>())
             return false;
         if (user->is_type<lora>()) {
+            return false;
+        }
+        // MLIR kernels require dense inputs, so a padded sub-view would only force an extra reorder
+        if (user->is_type<mlir_primitive>()) {
             return false;
         }
         // MVN canonicalizes the input shape and reads with contiguous pitches; a strided
