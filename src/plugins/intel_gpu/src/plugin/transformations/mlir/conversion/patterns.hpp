@@ -6,10 +6,10 @@
 
 #include "../graph_converter.hpp"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-// #include <openvino/op/add.hpp>
-// #include <openvino/op/divide.hpp>
-// #include <openvino/op/multiply.hpp>
-// #include <openvino/op/subtract.hpp>
+// #include "openvino/op/add.hpp"
+// #include "openvino/op/divide.hpp"
+// #include "openvino/op/multiply.hpp"
+// #include "openvino/op/subtract.hpp"
 
 namespace ov::intel_gpu::mlir {
 
