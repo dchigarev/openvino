@@ -319,11 +319,23 @@ event::ptr ocl_stream::enqueue_kernel(kernel& kernel,
     return std::make_shared<ocl_event>(ret_ev, ++_queue_counter);
 }
 
-void ocl_stream::enqueue_barrier() {
-    try {
-        _command_queue.enqueueBarrierWithWaitList(nullptr, nullptr);
-    } catch (const cl::Error& err) {
-        OPENVINO_THROW(OCL_ERR_MSG_FMT(err));
+void ocl_stream::enqueue_barrier(const std::vector<event::ptr>& deps) {
+    if (deps.empty()) {
+        try {
+            _command_queue.enqueueBarrierWithWaitList(nullptr, nullptr);
+        } catch (const cl::Error& err) {
+            OPENVINO_THROW(OCL_ERR_MSG_FMT(err));
+        }
+    } else {
+        auto dep_events = utils::get_cl_events(deps);
+        if (dep_events.empty()) {
+            return;
+        }
+        try {
+            _command_queue.enqueueBarrierWithWaitList(&dep_events, nullptr);
+        } catch (const cl::Error& err) {
+            OPENVINO_THROW(OCL_ERR_MSG_FMT(err));
+        }
     }
 }
 
@@ -376,14 +388,6 @@ event::ptr ocl_stream::create_base_event() {
     cl::Event ret_ev;
     return std::make_shared<ocl_event>(ret_ev, ++_queue_counter);
 }
-
-#ifdef ENABLE_MLIR_FOR_GPU
-event::ptr ocl_stream::create_base_event(void* handle) {
-    cl::Event ret_ev;
-    ret_ev = reinterpret_cast<cl_event>(handle);
-    return std::make_shared<ocl_event>(ret_ev, ++_queue_counter);
-}
-#endif
 
 std::unique_ptr<surfaces_lock> ocl_stream::create_surfaces_lock(const std::vector<memory::ptr>& mem) const {
     return std::unique_ptr<ocl::ocl_surfaces_lock>(new ocl::ocl_surfaces_lock(mem, *this));

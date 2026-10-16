@@ -11,6 +11,7 @@
 #include "convert_color_inst.h"
 #include "fully_connected_inst.h"
 #include "gated_mlp_inst.h"
+#include "mlir_primitive_inst.h"
 #include "mvn_inst.h"
 #include "pass_manager.h"
 #include "program_node.h"
@@ -275,6 +276,35 @@ void add_required_reorders::run(program& p) {
                     auto& new_reorder_node = p.get_or_create(new_reorder);
                     p.add_intermediate(new_reorder_node, *usr, dep);
                     new_reorder_node.recalc_output_layout(false);
+                }
+            }
+        }
+
+        // MLIR kernels require inputs as dense row-major buffers
+        if (usr->is_type<mlir_primitive>()) {
+            for (size_t idx = 0; idx < usr->get_dependencies().size(); ++idx) {
+                const auto [dep, port] = usr->get_dependency_with_port(idx);
+                if (!dep->is_in_data_flow() || dep->is_constant()) {
+                    continue;
+                }
+
+                const auto& dep_layout = dep->get_output_layout(false, port);
+                if (format::is_default_format(dep_layout.format) && !dep_layout.has_inner_padding()) {
+                    continue;
+                }
+
+                auto dense_layout = dep_layout;
+                dense_layout.format = format::get_default_format(dep_layout.get_rank());
+                dense_layout.data_padding = {};
+                // One reorder per (dependency, port): the same source may feed several ports of the same user
+                auto reorder_id = dep->id() + "_dense_reorder_" + std::to_string(port) + "_" + usr->id();
+                auto new_reorder = std::make_shared<reorder>(reorder_id, input_info(dep->id(), port), dense_layout);
+                auto& new_reorder_node = p.get_or_create(new_reorder);
+                // The reorder is connected to its dependency only once, further ports are just rewired to it
+                const bool connect_with_dep = new_reorder_node.get_dependencies().empty();
+                p.add_intermediate(new_reorder_node, *usr, idx, connect_with_dep);
+                if (connect_with_dep) {
+                    new_reorder_node.recalc_output_layouts(false);
                 }
             }
         }
