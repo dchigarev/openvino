@@ -45,6 +45,7 @@ std::shared_ptr<ov::Node> build_matmul_rmsnorm(ov::element::Type prec,
                                                const std::shared_ptr<ov::op::v0::Parameter>& param_b) {
     const auto& a_shape = param_a->get_shape();
     const auto hidden = static_cast<int64_t>(a_shape.back());
+    const auto batch = static_cast<int64_t>(a_shape[0]);
     const auto seq = static_cast<int64_t>(a_shape[1]);
     const int64_t heads = 24;
     const int64_t head_size = hidden / heads;
@@ -54,7 +55,7 @@ std::shared_ptr<ov::Node> build_matmul_rmsnorm(ov::element::Type prec,
     auto bias = ov::op::v0::Constant::create(prec, {static_cast<size_t>(hidden)}, std::vector<float>(hidden, 0.1F));
     auto add1 = std::make_shared<ov::op::v1::Add>(matmul, bias);
 
-    auto shape_val = ov::op::v0::Constant::create(ov::element::i64, {4}, std::vector<int64_t>{1, seq, heads, head_size});
+    auto shape_val = ov::op::v0::Constant::create(ov::element::i64, {4}, std::vector<int64_t>{batch, seq, heads, head_size});
     auto reshape = std::make_shared<ov::op::v1::Reshape>(add1, shape_val, false);
 
     auto order = ov::op::v0::Constant::create(ov::element::i64, {4}, std::vector<int64_t>{0, 2, 1, 3});
@@ -182,8 +183,9 @@ TEST_P(MatMulRmsnormConcatBenchmark, Inference) {
     }
 }
 
-const auto concatParams =
-    ::testing::Combine(::testing::Values(ov::Shape{1, 128, 1536}), ::testing::Values(ov::Shape{1, 1024, 1536}), ::testing::Values(ov::Shape{1536, 1536}));
+const auto concatParams = ::testing::Values(MatMulRmsnormConcatParams{{1, 128, 1536}, {1, 1024, 1536}, {1536, 1536}},
+                                            MatMulRmsnormConcatParams{{2, 128, 1536}, {2, 1024, 1536}, {1536, 1536}},
+                                            MatMulRmsnormConcatParams{{2, 154, 1536}, {2, 1024, 1536}, {1536, 1536}});
 INSTANTIATE_TEST_SUITE_P(mlir_MatMulRmsnormConcatTest, MatMulRmsnormConcatTest, concatParams, MatMulRmsnormConcatTest::getTestCaseName);
 INSTANTIATE_TEST_SUITE_P(bench_MatMulRmsnormConcatBenchmark, MatMulRmsnormConcatBenchmark, concatParams, MatMulRmsnormConcatTest::getTestCaseName);
 }  // namespace
